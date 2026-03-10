@@ -1,0 +1,84 @@
+<!--
+  Template e-mail geral: todos os setores.
+  Variáveis: periodo, municipio, total_aberto, total_tratamento, total_solucionado, setores
+  setores: [{ordem, nome, email, blocos_bairro, total_aberto, total_tratamento, total_solucionado}]
+  blocos_bairro: [{bairro, linhas: [{tipo, em_aberto, em_tratamento, solucionado}]}]
+-->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #333; margin: 15px; line-height: 1.1; }
+        .titulo-geral { font-size: 16px; font-weight: bold; border-bottom: 2px solid #2e7d32; margin-bottom: 10px; padding-bottom: 3px; color: #1b5e20; text-transform: uppercase; }
+        .tabela-resumo { width: 100%; border: 1px solid #2e7d32; margin-bottom: 15px; border-collapse: collapse; }
+        .tabela-resumo td { padding: 6px; text-align: center; border: 1px solid #2e7d32; font-weight: bold; font-size: 12px; }
+        .tabela-dados { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .tabela-dados th { background-color: #f1f8e9; border: 1px solid #888; padding: 4px; font-size: 10px; text-transform: uppercase; color: #1b5e20; }
+        .tabela-dados td { border: 1px solid #ccc; padding: 3px 5px; }
+        .header-departamento { background-color: #2e7d32; color: #fff; font-weight: bold; padding: 6px; font-size: 11px; text-transform: uppercase; }
+        .celula-bairro { font-weight: bold; background-color: #f9f9f9; width: 160px; }
+        .linha-total-setor { background-color: #e8f5e9; font-weight: bold; font-size: 11px; color: #1b5e20; }
+        .txt-aberto { color: #b71c1c; font-weight: bold; }
+        .txt-tratamento { color: #e67e22; }
+        .txt-solucionado { color: #2e7d32; }
+        .txt-center { text-align: center; }
+    </style>
+</head>
+<body>
+
+<div style="margin-bottom: 10px; margin-top: 10px;">Segue relatório automatizado do status das ocorrências apontadas pelo Mapzer.</div>
+<div class="titulo-geral">Relatório de Ocorrências do Mapzer</div>
+<div style="margin-bottom: 10px;">Período: {{ periodo }} | {{ municipio }}</div>
+
+<table class="tabela-resumo">
+    <tr>
+        <td class="txt-aberto">TOTAL EM ABERTO: {{ total_aberto }}</td>
+        <td class="txt-tratamento">TOTAL EM TRATAMENTO: {{ total_tratamento }}</td>
+        <td class="txt-solucionado">TOTAL SOLUCIONADO: {{ total_solucionado }}</td>
+    </tr>
+</table>
+
+<table class="tabela-dados">
+    <thead>
+        <tr>
+            <th>Bairro</th>
+            <th>Tipo de Ocorrência</th>
+            <th class="txt-center">Em Aberto (Sem OS)</th>
+            <th class="txt-center">Em Tratamento (Com OS)</th>
+            <th class="txt-center">Solucionado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for setor in setores %}
+        <tr><td colspan="5" class="header-departamento">{{ setor.ordem }}. {{ setor.nome|upper }}</td></tr>
+        {% for bloco in setor.blocos_bairro %}
+            {% for linha in bloco.linhas %}
+            <tr>
+                {% if loop.first %}
+                <td {% if bloco.linhas|length > 1 %}rowspan="{{ bloco.linhas|length }}"{% endif %} class="celula-bairro">{{ bloco.bairro }}</td>
+                {% endif %}
+                <td>{{ linha.tipo }}</td>
+                <td class="txt-center {% if linha.em_aberto %}txt-aberto{% endif %}">{{ linha.em_aberto }}</td>
+                <td class="txt-center {% if linha.em_tratamento %}txt-tratamento{% endif %}">{{ linha.em_tratamento }}</td>
+                <td class="txt-center">{{ linha.solucionado }}</td>
+            </tr>
+            {% endfor %}
+        {% endfor %}
+        <tr class="linha-total-setor">
+            <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+            <td class="txt-center txt-aberto">{{ setor.total_aberto }}</td>
+            <td class="txt-center">{{ setor.total_tratamento }}</td>
+            <td class="txt-center">{{ setor.total_solucionado }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div style="font-size: 10px; color: #777; margin-top: 10px; border-top: 1px solid #ccc; padding-top: 5px;">
+    Este relatório consolida a gestão de todas as pastas municipais.<br>
+    <strong>Fonte:</strong> Monitoramento Mapzer via Inteligência de Dados.
+</div>
+
+</body>
+</html>

@@ -1,0 +1,155 @@
+[
+  {
+    "setor": "Agricultura",
+    "email": "alvaro.agostinho@plss.com.br",
+    "tipos": ["Animais"]
+  },
+  {
+    "setor": "Departamento de serviços públicos",
+    "email": "alvaro.agostinho@plss.com.br",
+    "tipos": [
+      "Asfalto Irregular",
+      "Bueiro Irregular",
+      "Buraco",
+      "Calçada Irregular",
+      "Coletor Recicláveis",
+      "Comercio",
+      "Cone",
+      "Empoçamento",
+      "Iluminação Acesa",
+      "Lixo Irregular",
+      "Material Comercio Irregular",
+      "Material de Construção",
+      "Mato",
+      "Pichação",
+      "Placa Comercial Irregular",
+      "Placa Trânsito Irregular",
+      "Poste Irregular",
+      "Rachadura",
+      "Reparo",
+      "Rua Irregular",
+      "Sinalização Inexistente",
+      "Sinalização Irregular",
+      "Tampa Bueiro Irregular",
+      "Terreno Irregular",
+      "Veículo Irregular",
+      "Zona de Atenção"
+    ]
+  },
+  {
+    "setor": "Fiscalização",
+    "email": "alvaro.agostinho@plss.com.br",
+    "tipos": [
+      "Calçada Irregular",
+      "Comercio",
+      "Lixo Irregular",
+      "Material Comercio Irregular",
+      "Material de Construção",
+      "Mato",
+      "Placa Comercial",
+      "Placa Comercial Irregular",
+      "Terreno Irregular"
+    ]
+  },
+  {
+    "setor": "Industria, Comercio e turismo",
+    "email": "alvaro.agostinho@plss.com.br",
+    "tipos": [
+      "Asfalto Irregular",
+      "Bueiro Irregular",
+      "Buraco",
+      "Calçada Irregular",
+      "Coletor Recicláveis",
+      "Comercio",
+      "Cone",
+      "Empoçamento",
+      "Iluminação Acesa",
+      "Lixo Irregular",
+      "Material Comercio Irregular",
+      "Material de Construção",
+      "Mato",
+      "Pichação",
+      "Placa Comercial Irregular",
+      "Placa Trânsito Irregular",
+      "Poste Irregular",
+      "Rachadura",
+      "Reparo",
+      "Rua Irregular",
+      "Sinalização Inexistente",
+      "Sinalização Irregular",
+      "Tampa Bueiro Irregular",
+      "Terreno Irregular",
+      "Veículo Irregular",
+      "Zona de Atenção"
+    ]
+  },
+  {
+    "setor": "Meio Ambiente",
+    "email": "alvaro.agostinho@plss.com.br",
+    "tipos": [
+      "Bueiro Irregular",
+      "Calçada Irregular",
+      "Coletor Recicláveis",
+      "Empoçamento",
+      "Lixo Irregular",
+      "Material de Construção",
+      "Mato",
+      "Pichação",
+      "Tampa Bueiro Irregular",
+      "Terreno Irregular",
+      "Veículo Irregular",
+      "Zona de Atenção"
+    ]
+  },
+  {
+    "setor": "Secretaria de Desenvolvimento Urbano",
+    "email": "alvaro.agostinho@plss.com.br",
+    "tipos": [
+      "Asfalto Irregular",
+      "Buraco",
+      "Calçada Irregular",
+      "Lixo Irregular",
+      "Material Comercio Irregular",
+      "Material de Construção",
+      "Mato",
+      "Placa Comercial",
+      "Placa Comercial Irregular",
+      "Tampa Bueiro Irregular",
+      "Terreno Irregular"
+    ]
+  },
+  {
+    "setor": "Secretaria de Obras",
+    "email": "alvaro.agostinho@plss.com.br",
+    "tipos": [
+      "Asfalto Irregular",
+      "Bueiro Irregular",
+      "Buraco",
+      "Coletor Recicláveis",
+      "Empoçamento",
+      "Iluminação Acesa",
+      "Lixo Irregular",
+      "Rachadura",
+      "Rua Irregular",
+      "Sinalização Inexistente",
+      "Sinalização Irregular",
+      "Tampa Bueiro Irregular"
+    ]
+  },
+  {
+    "setor": "Segurança Publica",
+    "email": "alvaro.agostinho@plss.com.br",
+    "tipos": [
+      "Placa Trânsito Irregular",
+      "Sinalização Inexistente",
+      "Sinalização Irregular",
+      "Sinalizacao Irregular",
+      "Veículo Irregular"
+    ]
+  },
+  {
+    "setor": "Tributação",
+    "email": "alvaro.agostinho@plss.com.br",
+    "tipos": ["Material de Construção"]
+  }
+]

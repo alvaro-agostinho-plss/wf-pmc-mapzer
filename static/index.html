@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow Relatórios Mapzer - Ocorrências e Ordens de Serviço</title>
+  <script>window.BASE_PATH="__BASE_PATH__";</script>
+  <link rel="stylesheet" href="__BASE_PATH__/static/css/style.css">
+</head>
+<body>
+  <header>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+      <div style="flex: 1; min-width: 0;">
+        <div class="header-logos">
+          <img src="__BASE_PATH__/static/img/pmc_brasao.png" alt="Brasão Prefeitura" class="brasao">
+          <img src="__BASE_PATH__/static/img/logo_mapzer.svg" alt="Mapzer" class="logo-mapzer">
+        </div>
+        <h1>Workflow Relatórios Mapzer</h1>
+        <p>Ocorrências e Ordens de Serviço — Inclua lotes, processe e envie relatórios</p>
+      </div>
+      <span id="userInfo" class="user-info"></span>
+      <button type="button" id="btnLogout" class="btn-logout">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="acoes-lote">
+      <button type="button" id="btnIncluirLote" class="btn-incluir-lote">+ Incluir lote</button>
+    </section>
+
+    <section class="lotes-section">
+      <h2>Lotes</h2>
+      <div id="lotesContainer" class="lotes-grid-wrapper">
+        <p class="empty">Nenhum lote ainda.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Incluir Lote -->
+  <div id="modalIncluirLote" class="modal-overlay" style="display: none;">
+    <div class="modal-incluir-lote">
+      <h3>Incluir lote</h3>
+      <p class="modal-subtitle">Faça upload dos dois arquivos para criar o lote.</p>
+      <div class="modal-upload-zones">
+        <div class="modal-upload-card">
+          <label>📋 Ocorrências <span class="obrigatorio">*</span></label>
+          <div class="drop-area modal-drop" id="modalDropOcorr" data-tipo="ocorrencias">
+            <span class="icon">📁</span>
+            <p>Arraste ou clique</p>
+            <span id="modalOcorrNome" class="arquivo-nome"></span>
+          </div>
+          <input type="file" id="modalFileOcorr" accept=".xlsx,.xls" hidden>
+        </div>
+        <div class="modal-upload-card">
+          <label>📋 Ordem de Serviço <span class="obrigatorio">*</span></label>
+          <div class="drop-area modal-drop" id="modalDropOS" data-tipo="os">
+            <span class="icon">📁</span>
+            <p>Arraste ou clique</p>
+            <span id="modalOSNome" class="arquivo-nome"></span>
+          </div>
+          <input type="file" id="modalFileOS" accept=".xlsx,.xls" hidden>
+        </div>
+      </div>
+      <div class="modal-btns">
+        <button type="button" id="modalCancelar" class="btn-logout">Cancelar</button>
+        <button type="button" id="modalSalvar" class="btn-processar-lote" disabled>Salvar lote</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="__BASE_PATH__/static/auth.js"></script>
+  <script src="__BASE_PATH__/static/js/app.js"></script>
+</body>
+</html>

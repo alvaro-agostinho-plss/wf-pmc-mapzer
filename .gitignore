@@ -1,0 +1,11 @@
+venv/
+.venv/
+.venv_pip/
+.venv_packages/
+get-pip.py
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+logs/

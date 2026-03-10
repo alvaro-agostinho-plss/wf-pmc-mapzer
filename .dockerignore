@@ -1,0 +1,39 @@
+# Version control e IDE
+.git
+.gitignore
+
+# Ambiente Python (não copiar para imagem)
+.venv
+.venv_packages
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+
+# Secrets e config local
+.env
+.env.*
+!.env.example
+
+# Docs e dev (não necessários em produção)
+*.md
+docs/
+Zdoc/
+terminals/
+
+# Duplicatas e scripts de dev
+modelos/
+main.py
+run_server.py
+database.py
+
+# Logs (criados em runtime no container)
+logs/
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore

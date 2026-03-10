@@ -1,0 +1,21 @@
+REGISTRO DE ATIVIDADES - 06/03/2026
+Projeto: Mapzer | Tipo: Desenvolvimento de sistema
+
+MANHÃ:
+• Ajuste de tabelas no banco: set_email VARCHAR(500), migração para múltiplos e-mails
+• Desenvolvimento de view: vw_ocorrencias_status (EM_ABERTO, EM_TRATAMENTO, SOLUCIONADO)
+• Ajuste layout e-mail HTML: templates dinâmicos email_geral.html e email_secretaria.html
+• Módulo relatórios: agregação por setor/bairro/tipo, fluxo geral + por secretaria
+• Configuração SMTP: porta 465 SSL, múltiplos destinatários (; ou ,), From = usuário autenticado
+• Filtros: exclusão de linhas zeradas, bairros/tipos/setores sem dados
+• Scripts: test_envio_email, limpar_dados_importados, atualizar_view, atualizar_set_email, diagnostico_ocorrencias
+• Testes: envio completo (relatório geral + 9 secretarias)
+
+TARDE — Docker, autenticação e UI:
+• Docker: Dockerfile multi-stage, docker-compose, deploy produção porta 8000 em /wfpmcmapzer/
+• Volume: Uploads em /home/tecnologia/upload/mapzer, container wf_pmc_mapzer, usuário não-root
+• Script init_uploads.sql (tabelas uploads_planilha e lotes)
+• AUTH_MOCK: Login mock para bypass SSO, AUTH_MOCK=true no .env
+• Carregamento .env: load_dotenv com caminho absoluto em sso.py e run_server.py
+• UI Lotes: Grid em tabela (Ocorrência, OS, Processamento, E-mail, Ações)
+• Layout: Removido aviso-requisitos, área ampliada 1400px, botões padronizados

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Sistema Mapzer</title>
+  <script>window.BASE_PATH="__BASE_PATH__";</script>
+  <link rel="stylesheet" href="__BASE_PATH__/static/css/style.css">
+  <style>
+    .login-container {
+      max-width: 380px;
+      margin: 4rem auto;
+      padding: 2rem;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      border: 1px solid #e0e0e0;
+    }
+    .login-container .header-logos { margin-bottom: 1.25rem; }
+    .login-container .header-logos .brasao { height: 72px; }
+    .login-container .header-logos .logo-mapzer { height: 32px; }
+    .login-container h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.4rem;
+      color: #333;
+    }
+    .login-container .subtitle {
+      margin: 0 0 1.5rem;
+      font-size: 0.9rem;
+      color: #666;
+    }
+    .login-form label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #555;
+      margin-bottom: 0.35rem;
+    }
+    .login-form input {
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    .login-form input:focus {
+      outline: none;
+      border-color: #1565c0;
+      box-shadow: 0 0 0 2px rgba(21,101,192,0.15);
+    }
+    .login-form .field { margin-bottom: 1.25rem; }
+    .login-form .btn-login {
+      width: 100%;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 6px;
+      background: #1565c0;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    .login-form .btn-login:hover { background: #0d47a1; }
+    .login-form .btn-login:disabled {
+      background: #9e9e9e;
+      cursor: not-allowed;
+    }
+    .login-err {
+      margin-bottom: 1rem;
+      padding: 0.6rem 0.75rem;
+      background: #ffebee;
+      border-left: 4px solid #c62828;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: #b71c1c;
+      display: none;
+    }
+    .login-err.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="header-logos">
+<img src="__BASE_PATH__/static/img/pmc_brasao.png" alt="Brasão Prefeitura" class="brasao">
+    <img src="__BASE_PATH__/static/img/logo_mapzer.svg" alt="Mapzer" class="logo-mapzer">
+    </div>
+    <h1>Workflow Relatórios Mapzer</h1>
+    <p class="subtitle">Relatórios de Ocorrências e Ordens de Serviço</p>
+
+    <div id="loginErr" class="login-err" role="alert"></div>
+
+    <form id="loginForm" class="login-form">
+      <div class="field">
+        <label for="username">Usuário</label>
+        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Senha</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" id="btnLogin" class="btn-login">Entrar</button>
+    </form>
+  </div>
+  <script>
+    const form = document.getElementById("loginForm");
+    const username = document.getElementById("username");
+    const password = document.getElementById("password");
+    const btn = document.getElementById("btnLogin");
+    const errEl = document.getElementById("loginErr");
+
+    function showErr(msg) {
+      errEl.textContent = msg || "";
+      errEl.classList.toggle("visible", !!msg);
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showErr("");
+      btn.disabled = true;
+      try {
+        const r = await fetch((window.BASE_PATH || "") + "/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: username.value.trim(),
+            password: password.value,
+          }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          const msg = data.error || (Array.isArray(data.detail) ? data.detail.join(" ") : data.detail) || "Credenciais inválidas.";
+          showErr(msg);
+          return;
+        }
+        if (data.ok && data.access_token) {
+          sessionStorage.setItem("mapzer_token", data.access_token);
+          if (data.refresh_token) sessionStorage.setItem("mapzer_refresh", data.refresh_token);
+          window.location.href = (window.BASE_PATH || "") + "/";
+          return;
+        }
+        showErr("Resposta inesperada do servidor.");
+      } catch (err) {
+        showErr(err.message || "Erro ao conectar. Tente novamente.");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

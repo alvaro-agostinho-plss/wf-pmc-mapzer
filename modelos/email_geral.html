@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #333; margin: 15px; line-height: 1.1; }
+        .titulo-geral { font-size: 16px; font-weight: bold; border-bottom: 2px solid #2e7d32; margin-bottom: 10px; padding-bottom: 3px; color: #1b5e20; text-transform: uppercase; }
+        
+        /* Tabela de Resumo Global (Top KPIs) */
+        .tabela-resumo { width: 100%; border: 1px solid #2e7d32; margin-bottom: 15px; border-collapse: collapse; }
+        .tabela-resumo td { padding: 6px; text-align: center; border: 1px solid #2e7d32; font-weight: bold; font-size: 12px; }
+        
+        /* Tabela Técnica de Dados */
+        .tabela-dados { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .tabela-dados th { background-color: #f1f8e9; border: 1px solid #888; padding: 4px; font-size: 10px; text-transform: uppercase; color: #1b5e20; }
+        .tabela-dados td { border: 1px solid #ccc; padding: 3px 5px; }
+        
+        /* Faixa de Departamento (Verde Institucional) */
+        .header-departamento { background-color: #2e7d32; color: #fff; font-weight: bold; padding: 6px; font-size: 11px; text-transform: uppercase; }
+        
+        /* Estilos de Células */
+        .celula-bairro { font-weight: bold; background-color: #f9f9f9; width: 160px; }
+        .linha-total-setor { background-color: #e8f5e9; font-weight: bold; font-size: 11px; color: #1b5e20; }
+        
+        /* Status Técnicos */
+        .txt-aberto { color: #b71c1c; font-weight: bold; }
+        .txt-tratamento { color: #e67e22; }
+        .txt-solucionado { color: #2e7d32; }
+        .txt-center { text-align: center; }
+    </style>
+</head>
+<body>
+    
+	<div style="margin-bottom: 10px; margin-top: 10px; margin-bottom: 10px">Segue relatório automatizado do status das ocorrências apontadas pelo Mapzer.</div>
+    <div class="titulo-geral">Relatório de Ocorrências do Mapzer</div>
+    <div style="margin-bottom: 10px;">Período: 02/02/2026 a 05/02/2026 | Castro - PR</div>
+
+    <table class="tabela-resumo">
+        <tr>
+            <td class="txt-aberto">TOTAL EM ABERTO: 942</td>
+            <td style="color: #e67e22;">TOTAL EM TRATAMENTO: 7.910</td>
+            <td class="txt-solucionado">TOTAL SOLUCIONADO: 0</td>
+        </tr>
+    </table>
+
+    <table class="tabela-dados">
+        <thead>
+            <tr>
+                <th>Bairro</th>
+                <th>Tipo de Ocorrência</th>
+                <th class="txt-center">Em Aberto (Sem OS)</th>
+                <th class="txt-center">Em Tratamento (Com OS)</th>
+                <th class="txt-center">Solucionado</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr><td colspan="5" class="header-departamento">1. DEPARTAMENTO DE SERVIÇOS PÚBLICOS</td></tr>
+            <tr>
+                <td rowspan="2" class="celula-bairro">Vila Santa Cruz</td>
+                <td>Mato Alto</td>
+                <td class="txt-center txt-aberto">22</td>
+                <td class="txt-center txt-tratamento">450</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr>
+                <td>Sinalização Irregular</td>
+                <td class="txt-center txt-aberto">45</td>
+                <td class="txt-center txt-tratamento">180</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr>
+                <td class="celula-bairro">Centro</td>
+                <td>Lixo Irregular</td>
+                <td class="txt-center txt-aberto">2</td>
+                <td class="txt-center txt-tratamento">28</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr class="linha-total-setor">
+                <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+                <td class="txt-center txt-aberto">69</td>
+                <td class="txt-center">658</td>
+                <td class="txt-center">0</td>
+            </tr>
+
+            <tr><td colspan="5" class="header-departamento">2. SECRETARIA DE OBRAS</td></tr>
+            <tr>
+                <td rowspan="2" class="celula-bairro">Jardim Colonial</td>
+                <td>Asfalto Irregular</td>
+                <td class="txt-center txt-aberto">54</td>
+                <td class="txt-center txt-tratamento">30</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr>
+                <td>Rachadura em Via</td>
+                <td class="txt-center txt-aberto">10</td>
+                <td class="txt-center txt-tratamento">2</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr>
+                <td class="celula-bairro">Araucária</td>
+                <td>Tampa de Bueiro Irregular</td>
+                <td class="txt-center txt-aberto">16</td>
+                <td class="txt-center txt-tratamento">15</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr class="linha-total-setor">
+                <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+                <td class="txt-center txt-aberto">80</td>
+                <td class="txt-center">47</td>
+                <td class="txt-center">0</td>
+            </tr>
+
+            <tr><td colspan="5" class="header-departamento">3. FISCALIZAÇÃO</td></tr>
+            <tr>
+                <td class="celula-bairro">Centro</td>
+                <td>Comércio / Placa Irregular</td>
+                <td class="txt-center txt-aberto">13</td>
+                <td class="txt-center txt-tratamento">60</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr class="linha-total-setor">
+                <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+                <td class="txt-center txt-aberto">13</td>
+                <td class="txt-center">60</td>
+                <td class="txt-center">0</td>
+            </tr>
+
+            <tr><td colspan="5" class="header-departamento">4. SEGURANÇA PÚBLICA</td></tr>
+            <tr>
+                <td class="celula-bairro">Vila Rio Branco</td>
+                <td>Veículo Irregular / Estacionamento</td>
+                <td class="txt-center txt-aberto">16</td>
+                <td class="txt-center txt-tratamento">123</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr class="linha-total-setor">
+                <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+                <td class="txt-center txt-aberto">16</td>
+                <td class="txt-center">123</td>
+                <td class="txt-center">0</td>
+            </tr>
+
+            <tr><td colspan="5" class="header-departamento">5. MEIO AMBIENTE</td></tr>
+            <tr>
+                <td class="celula-bairro">Invernada</td>
+                <td>Lixo Irregular / Descarte</td>
+                <td class="txt-center txt-aberto">5</td>
+                <td class="txt-center txt-tratamento">40</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr class="linha-total-setor">
+                <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+                <td class="txt-center txt-aberto">5</td>
+                <td class="txt-center">40</td>
+                <td class="txt-center">0</td>
+            </tr>
+
+            <tr><td colspan="5" class="header-departamento">6. DESENVOLVIMENTO URBANO</td></tr>
+            <tr>
+                <td class="celula-bairro">Alvorada</td>
+                <td>Calçada Irregular</td>
+                <td class="txt-center txt-aberto">17</td>
+                <td class="txt-center txt-tratamento">5</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr class="linha-total-setor">
+                <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+                <td class="txt-center txt-aberto">17</td>
+                <td class="txt-center">5</td>
+                <td class="txt-center">0</td>
+            </tr>
+
+            <tr><td colspan="5" class="header-departamento">7. INDÚSTRIA, COMÉRCIO E TURISMO</td></tr>
+            <tr>
+                <td class="celula-bairro">Parque Industrial</td>
+                <td>Iluminação Acesa (Dia)</td>
+                <td class="txt-center txt-aberto">2</td>
+                <td class="txt-center txt-tratamento">10</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr class="linha-total-setor">
+                <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+                <td class="txt-center txt-aberto">2</td>
+                <td class="txt-center">10</td>
+                <td class="txt-center">0</td>
+            </tr>
+
+            <tr><td colspan="5" class="header-departamento">8. AGRICULTURA</td></tr>
+            <tr>
+                <td class="celula-bairro">Abapan (Rural)</td>
+                <td>Animais em Via Pública</td>
+                <td class="txt-center txt-aberto">8</td>
+                <td class="txt-center txt-tratamento">0</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr class="linha-total-setor">
+                <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+                <td class="txt-center txt-aberto">8</td>
+                <td class="txt-center">0</td>
+                <td class="txt-center">0</td>
+            </tr>
+
+            <tr><td colspan="5" class="header-departamento">9. TRIBUTAÇÃO</td></tr>
+            <tr>
+                <td class="celula-bairro">Jardim Primavera</td>
+                <td>Material de Construção s/ Alvará</td>
+                <td class="txt-center txt-aberto">5</td>
+                <td class="txt-center txt-tratamento">0</td>
+                <td class="txt-center">0</td>
+            </tr>
+            <tr class="linha-total-setor">
+                <td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL:</td>
+                <td class="txt-center txt-aberto">5</td>
+                <td class="txt-center">0</td>
+                <td class="txt-center">0</td>
+            </tr>
+
+        </tbody>
+    </table>
+
+    <div style="font-size: 10px; color: #777; margin-top: 10px; border-top: 1px solid #ccc; padding-top: 5px;">
+        Este relatório consolida a gestão de todas as pastas municipais.<br>
+        <strong>Fonte:</strong> Monitoramento Mapzer via Inteligência de Dados.
+    </div>
+
+</body>
+</html>
