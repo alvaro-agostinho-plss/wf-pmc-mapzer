@@ -5,42 +5,48 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Workflow Relatórios Mapzer - Ocorrências e Ordens de Serviço</title>
   <script>window.BASE_PATH="__BASE_PATH__";</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
   <link rel="stylesheet" href="__BASE_PATH__/static/css/style.css">
 </head>
 <body>
   <header>
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
-      <div style="flex: 1; min-width: 0;">
+    <div class="header-top">
+      <div class="header-brand">
         <div class="header-logos">
           <img src="__BASE_PATH__/static/img/pmc_brasao.png" alt="Brasão Prefeitura" class="brasao">
           <img src="__BASE_PATH__/static/img/logo_mapzer.svg" alt="Mapzer" class="logo-mapzer">
         </div>
-        <h1>Workflow Relatórios Mapzer</h1>
-        <p>Ocorrências e Ordens de Serviço — Inclua lotes, processe e envie relatórios</p>
       </div>
-      <span id="userInfo" class="user-info"></span>
-      <button type="button" id="btnLogout" class="btn-logout">Sair</button>
+      <div class="header-actions">
+        <span id="userInfo" class="user-info"></span>
+        <button type="button" id="btnLogout" class="btn-logout">Sair</button>
+      </div>
     </div>
+    <nav class="nav-menu">
+      <a href="__BASE_PATH__/" class="nav-link active">Envio de E-mail</a>
+      <a href="__BASE_PATH__/setores" class="nav-link">Setores</a>
+      <a href="__BASE_PATH__/tipos" class="nav-link">Tipos</a>
+    </nav>
   </header>
 
   <main>
+    <h2 class="page-title">Workflow de Relatório</h2>
     <section class="acoes-lote">
-      <button type="button" id="btnIncluirLote" class="btn-incluir-lote">+ Incluir lote</button>
+      <button type="button" id="btnIncluirLote" class="btn-incluir-lote">+ Incluir Workflow</button>
     </section>
 
     <section class="lotes-section">
-      <h2>Lotes</h2>
       <div id="lotesContainer" class="lotes-grid-wrapper">
-        <p class="empty">Nenhum lote ainda.</p>
+        <p class="empty">Nenhum envio cadastrado.</p>
       </div>
     </section>
   </main>
 
-  <!-- Modal Incluir Lote -->
+  <!-- Modal Incluir Envio -->
   <div id="modalIncluirLote" class="modal-overlay" style="display: none;">
     <div class="modal-incluir-lote">
-      <h3>Incluir lote</h3>
-      <p class="modal-subtitle">Faça upload dos dois arquivos para criar o lote.</p>
+      <h3>Incluir envio de e-mail</h3>
+      <p class="modal-subtitle">Faça upload dos arquivos de ocorrências e ordem de serviço para cadastrar o envio e processar.</p>
       <div class="modal-upload-zones">
         <div class="modal-upload-card">
           <label>📋 Ocorrências <span class="obrigatorio">*</span></label>
@@ -63,7 +69,7 @@
       </div>
       <div class="modal-btns">
         <button type="button" id="modalCancelar" class="btn-logout">Cancelar</button>
-        <button type="button" id="modalSalvar" class="btn-processar-lote" disabled>Salvar lote</button>
+        <button type="button" id="modalSalvar" class="btn-processar-lote" disabled>Salvar envio</button>
       </div>
     </div>
   </div>

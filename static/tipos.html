@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tipos de Ocorrência - Mapzer</title>
+  <script>window.BASE_PATH="__BASE_PATH__";</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="__BASE_PATH__/static/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <div class="header-brand">
+        <div class="header-logos">
+          <img src="__BASE_PATH__/static/img/pmc_brasao.png" alt="Brasão Prefeitura" class="brasao">
+          <img src="__BASE_PATH__/static/img/logo_mapzer.svg" alt="Mapzer" class="logo-mapzer">
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="userInfo" class="user-info"></span>
+        <button type="button" id="btnLogout" class="btn-logout">Sair</button>
+      </div>
+    </div>
+    <nav class="nav-menu">
+      <a href="__BASE_PATH__/" class="nav-link">Envio de E-mail</a>
+      <a href="__BASE_PATH__/setores" class="nav-link">Setores</a>
+      <a href="__BASE_PATH__/tipos" class="nav-link active">Tipos</a>
+    </nav>
+  </header>
+
+  <main>
+    <h2 class="page-title">Cadastro de Tipos de Ocorrência</h2>
+    <section class="acoes-lote">
+      <button type="button" id="btnNovoTipo" class="btn-incluir-lote">+ Novo tipo</button>
+    </section>
+
+    <section class="lotes-section">
+      <div id="tiposContainer" class="lotes-grid-wrapper">
+        <p class="empty">Nenhum tipo cadastrado.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Tipo -->
+  <div id="modalTipo" class="modal-overlay" style="display: none;">
+    <div class="modal-incluir-lote modal-setor">
+      <h3 id="modalTipoTitulo">Novo tipo</h3>
+      <p class="modal-subtitle">Informe o nome do tipo de ocorrência (ex: Asfalto Irregular, Animais).</p>
+      <form id="formTipo">
+        <input type="hidden" id="tipoId">
+        <div class="form-group">
+          <label for="tipoNome">Nome <span class="obrigatorio">*</span></label>
+          <input type="text" id="tipoNome" required maxlength="100" placeholder="Ex: Asfalto Irregular">
+        </div>
+        <div class="form-group">
+          <label for="tipoStatus">Status</label>
+          <select id="tipoStatus" class="form-select">
+            <option value="ATIVO">Ativo</option>
+            <option value="INATIVO">Inativo</option>
+          </select>
+        </div>
+      </form>
+      <div class="modal-btns">
+        <button type="button" id="modalTipoCancelar" class="btn-logout">Cancelar</button>
+        <button type="button" id="modalTipoSalvar" class="btn-processar-lote">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="__BASE_PATH__/static/auth.js"></script>
+  <script src="__BASE_PATH__/static/js/tipos.js"></script>
+</body>
+</html>

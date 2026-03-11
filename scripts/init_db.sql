@@ -9,7 +9,8 @@ CREATE TABLE setores (
     set_id SERIAL PRIMARY KEY,
     set_nome VARCHAR(100) NOT NULL,
     set_email VARCHAR(500) NOT NULL,  -- Múltiplos e-mails separados por ; ou ,
-    -- Campos de Auditoria (Obrigatoriamente sem prefixo e com underscores)
+    set_whatsapp VARCHAR(100),  -- Números WhatsApp separados por ; (ex: 5542999999999;5542988888888)
+    set_status VARCHAR(20),
     create_by VARCHAR(100),
     updated_by VARCHAR(100),
     create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -20,6 +21,7 @@ CREATE TABLE setores (
 CREATE TABLE tipos (
     tip_id SERIAL PRIMARY KEY,
     tip_nome VARCHAR(100) UNIQUE NOT NULL,
+    tip_status VARCHAR(20),
     create_by VARCHAR(100),
     updated_by VARCHAR(100),
     create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -185,12 +187,15 @@ SELECT
     -- Setor obtido pelo tipo: tip_id -> setores_tipos -> setores
     s.set_id,
     s.set_nome,
-    s.set_email
+    s.set_email,
+    s.set_whatsapp
 FROM ocorrencias_com_status ocs
 JOIN tipos t ON t.tip_id = ocs.tip_id
 JOIN setores_tipos st ON st.stp_tipid = ocs.tip_id  -- Pelo tipo, busca o setor
 JOIN setores s ON s.set_id = st.stp_setid
 WHERE ocs.tip_id IS NOT NULL
+  AND COALESCE(s.set_status, 'ATIVO') = 'ATIVO'
+  AND COALESCE(t.tip_status, 'ATIVO') = 'ATIVO'
 ORDER BY s.set_id, ocs.oco_bairro, t.tip_nome;
 
 COMMENT ON VIEW vw_ocorrencias_status IS 'Ocorrências com status calculado (EM_ABERTO/EM_TRATAMENTO/SOLUCIONADO) por setor. Uma ocorrência com tipo em múltiplos setores aparece em múltiplas linhas. Filtrar por oco_datahora no SELECT.';

@@ -28,9 +28,9 @@ def configurar_logging(
     root.setLevel(nivel)
     formatter = logging.Formatter(_FORMAT)
 
-    # Arquivo de erros (só ERROR e acima; logger.exception() inclui traceback)
+    # Arquivo de erros (WARNING+ inclui 404; logger.exception() inclui traceback)
     fh_erros = logging.FileHandler(LOG_ERROS, encoding="utf-8")
-    fh_erros.setLevel(logging.ERROR)
+    fh_erros.setLevel(logging.WARNING)
     fh_erros.setFormatter(logging.Formatter(_FORMAT))
     root.addHandler(fh_erros)
 

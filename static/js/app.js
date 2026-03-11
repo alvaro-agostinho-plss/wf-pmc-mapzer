@@ -91,7 +91,7 @@ modalCancelar.addEventListener("click", () => {
 modalSalvar.addEventListener("click", async () => {
   if (!modalUploadIds.ocorrencias || !modalUploadIds.os) return;
   modalSalvar.disabled = true;
-  showLoad("Salvando lote...");
+  showLoad("Salvando envio...");
   try {
     const r = await authFetch("/api/lotes", {
       method: "POST",
@@ -102,12 +102,12 @@ modalSalvar.addEventListener("click", async () => {
       }),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.detail || data.msg || "Erro ao criar lote");
-    showToast("Lote criado", "success");
+    if (!r.ok) throw new Error(data.detail || data.msg || "Erro ao criar envio");
+    showToast("Envio cadastrado", "success");
     modalIncluirLote.style.display = "none";
     loadLotes();
   } catch (e) {
-    showToast(e.message || "Erro ao criar lote", "error");
+    showToast(e.message || "Erro ao criar envio", "error");
     modalSalvar.disabled = false;
   } finally {
     hideLoad();
@@ -123,12 +123,19 @@ async function loadLotes() {
     const r = await authFetch("/api/lotes");
     const items = await r.json();
     if (!items.length) {
-      lotesContainer.innerHTML = '<p class="empty">Nenhum lote ainda. Clique em "Incluir lote" para começar.</p>';
+      lotesContainer.innerHTML = '<p class="empty">Nenhum envio cadastrado. Clique em "Incluir envio" para começar.</p>';
       lotesContainer.classList.remove("lotes-table");
     } else {
       lotesContainer.classList.add("lotes-table");
       lotesContainer.innerHTML = `
         <table class="lotes-grid">
+          <colgroup>
+            <col class="col-ocorr">
+            <col class="col-os">
+            <col class="col-data">
+            <col class="col-data">
+            <col class="col-acoes">
+          </colgroup>
           <thead>
             <tr>
               <th>Ocorrência</th>
@@ -148,6 +155,12 @@ async function loadLotes() {
         document.querySelector(`[data-action="enviar"][data-id="${l.id}"]`)?.addEventListener("click", () => enviarEmailLote(l.id));
         document.querySelector(`[data-action="excluir"][data-id="${l.id}"]`)?.addEventListener("click", () => excluirLote(l.id));
       });
+      lotesContainer.querySelectorAll(".btn-download").forEach(link => {
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          downloadArquivo(link.dataset.uploadId, link.dataset.filename);
+        });
+      });
     }
   } catch (e) {
     lotesContainer.innerHTML = `<p class="empty">Erro: ${e.message}</p>`;
@@ -158,13 +171,18 @@ async function loadLotes() {
 function renderLoteRow(l) {
   const processado = !!l.data_processamento;
   const emailEnviado = !!l.data_envio_email;
-  const dtProc = l.data_processamento ? new Date(l.data_processamento).toLocaleString("pt-BR") : "—";
-  const dtEmail = l.data_envio_email ? new Date(l.data_envio_email).toLocaleString("pt-BR") : "—";
+  const dtProc = l.data_processamento ? new Date(l.data_processamento).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+  const dtEmail = l.data_envio_email ? new Date(l.data_envio_email).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
   const textoBtnEmail = (processado && emailEnviado) ? "Reenviar" : "Enviar e-mail";
+  const cellFile = (uplId, nome, nomeClass) => {
+    const txt = escapeHtml(nome || "—");
+    if (!uplId || !nome) return `<span class="${nomeClass}">${txt}</span>`;
+    return `<span class="cell-file"><span class="${nomeClass}">${txt}</span><a href="#" class="btn-download" data-upload-id="${uplId}" data-filename="${escapeHtml(nome)}" title="Baixar planilha"><i class="fa-solid fa-download"></i></a></span>`;
+  };
   return `
     <tr class="lote-row" data-lote-id="${l.id}">
-      <td class="col-ocorr"><span class="nome-ocorr">${escapeHtml(l.nome_ocorrencias || "")}</span></td>
-      <td class="col-os"><span class="nome-os">${escapeHtml(l.nome_os || "")}</span></td>
+      <td class="col-ocorr">${cellFile(l.upl_id_ocorrencias, l.nome_ocorrencias, "nome-ocorr")}</td>
+      <td class="col-os">${cellFile(l.upl_id_os, l.nome_os, "nome-os")}</td>
       <td class="col-data">${dtProc}</td>
       <td class="col-data">${dtEmail}</td>
       <td class="col-acoes">
@@ -174,6 +192,22 @@ function renderLoteRow(l) {
       </td>
     </tr>
   `;
+}
+
+async function downloadArquivo(uploadId, filename) {
+  try {
+    const r = await authFetch("api/uploads/" + uploadId + "/download");
+    if (!r.ok) throw new Error("Erro ao baixar");
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || "planilha.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showToast(e.message || "Erro ao baixar arquivo", "error");
+  }
 }
 
 async function processarLote(id) {
@@ -216,16 +250,16 @@ async function enviarEmailLote(id) {
 }
 
 async function excluirLote(id) {
-  if (!confirm("Excluir este lote? Os dois arquivos serão removidos.")) return;
+  if (!confirm("Excluir este envio? Os dois arquivos serão removidos.")) return;
   showLoad("Excluindo...");
   try {
     const r = await authFetch(`/api/lotes/${id}`, { method: "DELETE" });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.detail || "Erro ao excluir");
-    showToast("Lote excluído", "success");
+    showToast("Envio excluído", "success");
     loadLotes();
   } catch (e) {
-    showToast(e.message || "Erro ao excluir", "error");
+    showToast(e.message || "Erro ao excluir envio", "error");
     loadLotes();
   } finally {
     hideLoad();

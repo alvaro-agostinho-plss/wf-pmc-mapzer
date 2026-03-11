@@ -56,7 +56,7 @@ def obter_dados_view(
     config = config or DatabaseConfig()
     engine = create_engine(config.connection_url)
     sql = """
-        SELECT set_id, set_nome, set_email, oco_bairro, tip_nome, status,
+        SELECT set_id, set_nome, set_email, set_whatsapp, oco_bairro, tip_nome, status,
                oco_datahora
         FROM vw_ocorrencias_status
     """
@@ -109,7 +109,7 @@ def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
     else:
         periodo = ""
 
-    # Agregação: set_id, set_nome, set_email, oco_bairro, tip_nome, status -> count
+    # Agregação: set_id, set_nome, set_email, set_whatsapp, oco_bairro, tip_nome, status -> count
     df = df.copy()
     for col in ["oco_bairro", "tip_nome"]:
         if col in df.columns:
@@ -118,14 +118,19 @@ def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
     if "status" in df.columns:
         df["status"] = df["status"].replace({"ABERTO": "EM_ABERTO"})
     df["_count"] = 1
+    cols_aggr = ["set_id", "set_nome", "set_email", "oco_bairro", "tip_nome", "status"]
+    if "set_whatsapp" in df.columns:
+        cols_aggr.insert(3, "set_whatsapp")
     agg = (
-        df.groupby(["set_id", "set_nome", "set_email", "oco_bairro", "tip_nome", "status"], dropna=False)
+        df.groupby(cols_aggr, dropna=False)
         .agg({"_count": "sum"})
         .reset_index()
     )
-    # Pivot status para colunas
+    idx_cols = ["set_id", "set_nome", "set_email", "oco_bairro", "tip_nome"]
+    if "set_whatsapp" in agg.columns:
+        idx_cols.insert(3, "set_whatsapp")
     pivot = agg.pivot_table(
-        index=["set_id", "set_nome", "set_email", "oco_bairro", "tip_nome"],
+        index=idx_cols,
         columns="status",
         values="_count",
         aggfunc="sum",
@@ -141,6 +146,7 @@ def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
     for set_id, grp in pivot.groupby("set_id"):
         set_nome = grp["set_nome"].iloc[0]
         set_email = str(grp["set_email"].iloc[0] or "").strip()
+        set_whatsapp = str(grp["set_whatsapp"].iloc[0] or "").strip() if "set_whatsapp" in grp.columns else ""
         blocos_bairro = []
         set_total_aberto = 0
         set_total_tratamento = 0
@@ -178,6 +184,7 @@ def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
             "ordem": ordem,
             "nome": set_nome,
             "email": set_email,
+            "whatsapp": set_whatsapp,
             "blocos_bairro": blocos_bairro,
             "total_aberto": set_total_aberto,
             "total_tratamento": set_total_tratamento,
@@ -187,6 +194,7 @@ def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
         setores_por_id[set_id] = {
             "setor_nome": set_nome,
             "email": set_email,
+            "whatsapp": set_whatsapp,
             "periodo": periodo,
             "total_aberto": set_total_aberto,
             "total_tratamento": set_total_tratamento,

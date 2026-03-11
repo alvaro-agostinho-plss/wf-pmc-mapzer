@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro de Setores - Mapzer</title>
+  <script>window.BASE_PATH="__BASE_PATH__";</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="__BASE_PATH__/static/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <div class="header-brand">
+        <div class="header-logos">
+          <img src="__BASE_PATH__/static/img/pmc_brasao.png" alt="Brasão Prefeitura" class="brasao">
+          <img src="__BASE_PATH__/static/img/logo_mapzer.svg" alt="Mapzer" class="logo-mapzer">
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="userInfo" class="user-info"></span>
+        <button type="button" id="btnLogout" class="btn-logout">Sair</button>
+      </div>
+    </div>
+    <nav class="nav-menu">
+      <a href="__BASE_PATH__/" class="nav-link">Envio de E-mail</a>
+      <a href="__BASE_PATH__/setores" class="nav-link active">Setores</a>
+      <a href="__BASE_PATH__/tipos" class="nav-link">Tipos</a>
+    </nav>
+  </header>
+
+  <main>
+    <h2 class="page-title">Cadastro de Setores</h2>
+    <section class="acoes-lote">
+      <button type="button" id="btnNovoSetor" class="btn-incluir-lote">+ Novo setor</button>
+    </section>
+
+    <section class="lotes-section">
+      <div id="setoresContainer" class="lotes-grid-wrapper">
+        <p class="empty">Nenhum setor cadastrado.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Setor -->
+  <div id="modalSetor" class="modal-overlay" style="display: none;">
+    <div class="modal-incluir-lote modal-setor">
+      <h3 id="modalSetorTitulo">Novo setor</h3>
+      <p class="modal-subtitle">Preencha os dados do setor para envio de relatórios.</p>
+      <form id="formSetor">
+        <input type="hidden" id="setorId">
+        <div class="form-group">
+          <label for="setorNome">Nome <span class="obrigatorio">*</span></label>
+          <input type="text" id="setorNome" required maxlength="100" placeholder="Ex: Secretaria de Obras">
+        </div>
+        <div class="form-group">
+          <label for="setorEmail">E-mail(s) <span class="obrigatorio">*</span></label>
+          <input type="text" id="setorEmail" required maxlength="500" placeholder="email1@prefeitura.gov.br; email2@prefeitura.gov.br">
+          <span class="form-hint">Múltiplos e-mails separados por ; ou ,</span>
+        </div>
+        <div class="form-group">
+          <label for="setorWhatsapp">WhatsApp</label>
+          <input type="text" id="setorWhatsapp" maxlength="100" placeholder="5542999999999;5542988888888">
+          <span class="form-hint">Números separados por ; (ex: 5542999999999;5542988888888)</span>
+        </div>
+        <div class="form-group">
+          <label for="setorStatus">Status</label>
+          <select id="setorStatus" class="form-select">
+            <option value="ATIVO">Ativo</option>
+            <option value="INATIVO">Inativo</option>
+          </select>
+        </div>
+        <div class="form-group form-group-tipos">
+          <label>Tipo de Ocorrência</label>
+          <span class="form-hint">Relacione os tipos de ocorrência a este setor</span>
+          <div id="tiposCheckboxes" class="tipos-checkboxes"></div>
+        </div>
+      </form>
+      <div class="modal-btns">
+        <button type="button" id="modalSetorCancelar" class="btn-logout">Cancelar</button>
+        <button type="button" id="modalSetorSalvar" class="btn-processar-lote">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="__BASE_PATH__/static/auth.js"></script>
+  <script src="__BASE_PATH__/static/js/setores.js"></script>
+</body>
+</html>

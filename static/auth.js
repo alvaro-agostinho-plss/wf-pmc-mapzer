@@ -80,7 +80,10 @@ async function tryRefresh() {
  * fetch que inclui token. Em 401: tenta refresh; se falhar, mostra "Sessão expirada" e redireciona.
  */
 async function authFetch(url, options = {}) {
-  const fullUrl = url.startsWith("http") ? url : (baseUrl() + url);
+  // URLs relativas (ex: "api/uploads/1/download") evitam duplicação de base path em produção
+  const fullUrl = url.startsWith("http") ? url
+    : url.startsWith("/") ? (baseUrl() + url)
+    : url;
   const headers = { ...(options.headers || {}), ...authHeaders() };
   let r = await fetch(fullUrl, { ...options, headers });
   if (r.status === 401) {
@@ -88,7 +91,8 @@ async function authFetch(url, options = {}) {
     if (ok) {
       const retryHeaders = { ...(options.headers || {}), ...authHeaders() };
       r = await fetch(fullUrl, { ...options, headers: retryHeaders });
-      if (r.status === 401) redirectToLogin();
+      if (r.status !== 401) return r;
+      redirectToLogin();
     } else {
       redirectToLogin();
     }

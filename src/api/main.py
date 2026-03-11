@@ -6,10 +6,24 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.api.auth import obter_usuario
+from src.api.setores import (
+    atualizar_setor,
+    criar_setor,
+    excluir_setor,
+    listar_setores,
+    obter_setor,
+)
+from src.api.tipos import (
+    atualizar_tipo,
+    criar_tipo,
+    excluir_tipo,
+    listar_tipos,
+    obter_tipo,
+)
 from src.api.upload import (
     UPLOADS_DIR,
     criar_lote,
@@ -80,6 +94,20 @@ def login_page():
     """Página de login SSO."""
     html = _read_html("login.html")
     return html or "<h1>Login</h1><p>static/login.html não encontrado</p>"
+
+
+@app.get("/setores", response_class=HTMLResponse)
+def setores_page():
+    """Página de cadastro de setores."""
+    html = _read_html("setores.html")
+    return html or "<h1>Setores</h1><p>static/setores.html não encontrado</p>"
+
+
+@app.get("/tipos", response_class=HTMLResponse)
+def tipos_page():
+    """Página de cadastro de tipos de ocorrência."""
+    html = _read_html("tipos.html")
+    return html or "<h1>Tipos</h1><p>static/tipos.html não encontrado</p>"
 
 
 class LoginBody(BaseModel):
@@ -186,6 +214,35 @@ def excluir_upload_api(upload_id: str, _: dict = Depends(obter_usuario)):
         raise
     except Exception as e:
         _log_erro(e, "Excluir upload")
+        raise HTTPException(500, str(e)) from e
+
+
+@app.get("/api/uploads/{upload_id}/download")
+def download_upload(upload_id: str, _: dict = Depends(obter_usuario)):
+    """Faz download do arquivo da planilha."""
+    try:
+        from src.api.upload import _get_uploads_dir
+        u = obter_upload(upload_id)
+        if not u:
+            logger.warning("Download 404: upload_id=%s não encontrado no banco", upload_id)
+            raise HTTPException(404, "Upload não encontrado")
+        uploads_dir = _get_uploads_dir()
+        caminho = uploads_dir / u["caminho_armazenado"]
+        if not caminho.exists():
+            logger.error(
+                "Download 404: arquivo não existe. upload_id=%s | caminho=%s | dir_uploads=%s",
+                upload_id, caminho, uploads_dir,
+            )
+            raise HTTPException(404, "Arquivo não encontrado no servidor")
+        return FileResponse(
+            path=str(caminho),
+            filename=u["nome_arquivo"],
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        _log_erro(e, f"Download upload_id={upload_id}")
         raise HTTPException(500, str(e)) from e
 
 
@@ -325,6 +382,163 @@ def excluir_lote_api(lot_id: str, _: dict = Depends(obter_usuario)):
         _log_erro(e, "Excluir lote")
         raise HTTPException(500, str(e)) from e
 
+
+# ========== Setores ==========
+
+@app.get("/api/setores")
+def listar_setores_api(_: dict = Depends(obter_usuario)):
+    """Lista todos os setores."""
+    try:
+        return listar_setores()
+    except Exception as e:
+        _log_erro(e, "Listar setores")
+        raise HTTPException(500, str(e)) from e
+
+
+@app.get("/api/setores/{set_id}")
+def obter_setor_api(set_id: int, _: dict = Depends(obter_usuario)):
+    """Retorna setor por ID."""
+    try:
+        s = obter_setor(set_id)
+        if not s:
+            raise HTTPException(404, "Setor não encontrado")
+        return s
+    except HTTPException:
+        raise
+    except Exception as e:
+        _log_erro(e, "Obter setor")
+        raise HTTPException(500, str(e)) from e
+
+
+class SetorBody(BaseModel):
+    set_nome: str
+    set_email: str
+    set_whatsapp: str | None = None
+    set_status: str = "ATIVO"
+    tip_ids: list[int] | None = None
+
+
+@app.post("/api/setores")
+def criar_setor_api(body: SetorBody, usuario: dict = Depends(obter_usuario)):
+    """Cria novo setor."""
+    try:
+        return criar_setor(
+            body.set_nome, body.set_email, body.set_whatsapp, _username(usuario),
+            tip_ids=body.tip_ids, set_status=body.set_status,
+        )
+    except Exception as e:
+        _log_erro(e, "Criar setor")
+        raise HTTPException(500, str(e)) from e
+
+
+@app.put("/api/setores/{set_id}")
+def atualizar_setor_api(set_id: int, body: SetorBody, usuario: dict = Depends(obter_usuario)):
+    """Atualiza setor."""
+    try:
+        s = atualizar_setor(
+            set_id, body.set_nome, body.set_email, body.set_whatsapp, _username(usuario),
+            tip_ids=body.tip_ids, set_status=body.set_status,
+        )
+        if not s:
+            raise HTTPException(404, "Setor não encontrado")
+        return s
+    except HTTPException:
+        raise
+    except Exception as e:
+        _log_erro(e, "Atualizar setor")
+        raise HTTPException(500, str(e)) from e
+
+
+@app.delete("/api/setores/{set_id}")
+def excluir_setor_api(set_id: int, _: dict = Depends(obter_usuario)):
+    """Exclui setor."""
+    try:
+        if not excluir_setor(set_id):
+            raise HTTPException(404, "Setor não encontrado")
+        return {"ok": True, "mensagem": "Setor excluído"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        _log_erro(e, "Excluir setor")
+        raise HTTPException(500, str(e)) from e
+
+
+# ========== Tipos de Ocorrência ==========
+
+@app.get("/api/tipos")
+def listar_tipos_api(_: dict = Depends(obter_usuario)):
+    """Lista todos os tipos de ocorrência."""
+    try:
+        return listar_tipos()
+    except Exception as e:
+        _log_erro(e, "Listar tipos")
+        raise HTTPException(500, str(e)) from e
+
+
+@app.get("/api/tipos/{tip_id}")
+def obter_tipo_api(tip_id: int, _: dict = Depends(obter_usuario)):
+    """Retorna tipo por ID."""
+    try:
+        t = obter_tipo(tip_id)
+        if not t:
+            raise HTTPException(404, "Tipo não encontrado")
+        return t
+    except HTTPException:
+        raise
+    except Exception as e:
+        _log_erro(e, "Obter tipo")
+        raise HTTPException(500, str(e)) from e
+
+
+class TipoBody(BaseModel):
+    tip_nome: str
+    tip_status: str = "ATIVO"
+
+
+@app.post("/api/tipos")
+def criar_tipo_api(body: TipoBody, usuario: dict = Depends(obter_usuario)):
+    """Cria novo tipo de ocorrência."""
+    try:
+        return criar_tipo(body.tip_nome, _username(usuario), tip_status=body.tip_status)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        _log_erro(e, "Criar tipo")
+        raise HTTPException(500, str(e)) from e
+
+
+@app.put("/api/tipos/{tip_id}")
+def atualizar_tipo_api(tip_id: int, body: TipoBody, usuario: dict = Depends(obter_usuario)):
+    """Atualiza tipo de ocorrência."""
+    try:
+        t = atualizar_tipo(tip_id, body.tip_nome, _username(usuario), tip_status=body.tip_status)
+        if not t:
+            raise HTTPException(404, "Tipo não encontrado")
+        return t
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except HTTPException:
+        raise
+    except Exception as e:
+        _log_erro(e, "Atualizar tipo")
+        raise HTTPException(500, str(e)) from e
+
+
+@app.delete("/api/tipos/{tip_id}")
+def excluir_tipo_api(tip_id: int, _: dict = Depends(obter_usuario)):
+    """Exclui tipo de ocorrência."""
+    try:
+        if not excluir_tipo(tip_id):
+            raise HTTPException(404, "Tipo não encontrado")
+        return {"ok": True, "mensagem": "Tipo excluído"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        _log_erro(e, "Excluir tipo")
+        raise HTTPException(500, str(e)) from e
+
+
+# ========== E-mails ==========
 
 @app.post("/api/enviar-emails")
 def enviar_emails_api(_: dict = Depends(obter_usuario)):

@@ -9,11 +9,12 @@ services:
     environment:
       - BASE_PATH=/wfpmcmapzer
       - DIR_UPLOADS=/app/uploads
-      - AUTH_MOCK=true
       - PYTHONUNBUFFERED=1
     volumes:
-      # Caminho absoluto (evita ~ = /root quando roda como root)
+      # Uploads e downloads (arquivos das planilhas)
       - /home/tecnologia/upload/mapzer:/app/uploads
+      # Logs (erros.log, app.log) para análise em produção
+      - /home/tecnologia/logs/mapzer:/app/logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/wfpmcmapzer/health')"]
