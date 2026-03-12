@@ -250,7 +250,7 @@ async function enviarEmailLote(id) {
 }
 
 async function excluirLote(id) {
-  if (!confirm("Excluir este envio? Os dois arquivos serão removidos.")) return;
+  if (!confirm("Excluir este workflow? Os dois arquivos serão removidos.")) return;
   showLoad("Excluindo...");
   try {
     const r = await authFetch(`/api/lotes/${id}`, { method: "DELETE" });

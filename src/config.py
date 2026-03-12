@@ -54,6 +54,37 @@ class AppConfig(BaseSettings):
     email_template: str | None = Field(alias="EMAIL_TEMPLATE", default=None)
     municipio: str = Field(alias="MUNICIPIO", default="Castro - PR")
 
+    omitir_sem_localizacao: bool = Field(alias="OMITIR_SEM_LOCALIZACAO", default=False)
+    tipo_sem_localizacao: str | None = Field(alias="TIPO_SEM_LOCALIZACAO", default=None)
+
+    @property
+    def valores_sem_localizacao(self) -> tuple[str, ...]:
+        """Valores que indicam bairro sem localização (lowercase para comparação)."""
+        base = ("", "nan", "none", "null")
+        if not self.tipo_sem_localizacao or not str(self.tipo_sem_localizacao).strip():
+            return base + ("não identificado", "nao identificado", "bairro não identificado", "bairro nao identificado")
+        seen = set(base)
+        result = list(base)
+        for v in str(self.tipo_sem_localizacao).split(","):
+            if not v or not v.strip():
+                continue
+            v_lower = v.strip().lower()
+            v_norm = normalizar_tipo(v)
+            if v_lower not in seen:
+                seen.add(v_lower)
+                result.append(v_lower)
+            if v_norm and v_norm not in seen:
+                seen.add(v_norm)
+                result.append(v_norm)
+        return tuple(result)
+
+    # Limites de coordenadas para validação no ETL (ocorrências)
+    lat_min: float = Field(alias="LAT_MIN", default=-25.0700)
+    lat_max: float = Field(alias="LAT_MAX", default=-24.4400)
+    lng_min: float = Field(alias="LNG_MIN", default=-50.2500)
+    lng_max: float = Field(alias="LNG_MAX", default=-49.6100)
+    coord_precision: int = Field(alias="COORD_PRECISION", default=6)
+
 
 class SMTPConfig(BaseSettings):
     """Configuração SMTP para envio de e-mails."""

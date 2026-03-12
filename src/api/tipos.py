@@ -10,6 +10,36 @@ def _engine():
     return create_engine(DatabaseConfig().connection_url)
 
 
+def listar_tipos_sem_setor() -> list[dict]:
+    """Lista tipos que não possuem nenhuma associação com setor."""
+    eng = _engine()
+    with eng.connect() as conn:
+        r = conn.execute(text("""
+            SELECT t.tip_id, t.tip_nome
+            FROM tipos t
+            WHERE NOT EXISTS (SELECT 1 FROM setores_tipos st WHERE st.stp_tipid = t.tip_id)
+            ORDER BY t.tip_nome
+        """))
+        rows = r.fetchall()
+    return [{"id": row[0], "tip_nome": row[1]} for row in rows]
+
+
+def listar_tipos_com_multiplos_setores() -> list[dict]:
+    """Lista tipos que possuem vínculo com mais de um setor."""
+    eng = _engine()
+    with eng.connect() as conn:
+        r = conn.execute(text("""
+            SELECT t.tip_id, t.tip_nome, COUNT(st.stp_setid) AS qtd_setores
+            FROM tipos t
+            JOIN setores_tipos st ON st.stp_tipid = t.tip_id
+            GROUP BY t.tip_id, t.tip_nome
+            HAVING COUNT(st.stp_setid) > 1
+            ORDER BY t.tip_nome
+        """))
+        rows = r.fetchall()
+    return [{"id": row[0], "tip_nome": row[1], "qtd_setores": row[2]} for row in rows]
+
+
 def listar_tipos() -> list[dict]:
     """Lista todos os tipos de ocorrência ordenados por nome."""
     eng = _engine()

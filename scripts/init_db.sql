@@ -64,6 +64,9 @@ CREATE TABLE ocorrencias (
 CREATE INDEX idx_oco_datahora ON ocorrencias(oco_datahora);
 CREATE INDEX idx_oco_bairro ON ocorrencias(oco_bairro);
 CREATE INDEX idx_oco_tipid ON ocorrencias(tip_id);
+-- Unicidade: mesma latitude + longitude + tipo = duplicata (permite mesmas coordenadas com tipo diferente)
+CREATE UNIQUE INDEX idx_oco_lat_lng_tipo ON ocorrencias(oco_latitude, oco_longitude, tip_id)
+  WHERE oco_latitude IS NOT NULL AND oco_longitude IS NOT NULL AND tip_id IS NOT NULL;
 CREATE INDEX idx_tip_nome ON tipos(tip_nome);
 
 
@@ -133,6 +136,12 @@ CREATE TABLE IF NOT EXISTS lotes (
 );
 CREATE INDEX IF NOT EXISTS idx_lotes_processamento ON lotes(lot_data_processamento DESC);
 
+-- Colunas lot_id: vinculam ocorrências/OS ao lote. ON DELETE CASCADE remove registros ao excluir lote.
+ALTER TABLE ocorrencias ADD COLUMN IF NOT EXISTS lot_id UUID REFERENCES lotes(lot_id) ON DELETE CASCADE;
+ALTER TABLE ordens_servico ADD COLUMN IF NOT EXISTS lot_id UUID REFERENCES lotes(lot_id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_oco_lot_id ON ocorrencias(lot_id);
+CREATE INDEX IF NOT EXISTS idx_ose_lot_id ON ordens_servico(lot_id);
+
 -- =============================================================================
 -- VIEW: OCORRÊNCIAS COM STATUS (Em Aberto / Em Tratamento / Solucionado)
 -- Usar: SELECT * FROM vw_ocorrencias_status WHERE oco_datahora BETWEEN :dt_inicio AND :dt_fim
@@ -150,8 +159,6 @@ WITH ocorrencias_com_status AS (
         o.oco_longitude,
         o.tip_id,
         o.oco_ordemservico,
-        -- Regra: SEM OS -> Em Aberto; COM OS PENDENTE -> Em Tratamento; COM OS RESOLVIDO -> Solucionado
-        -- Prioridade: se qualquer OS vinculada for RESOLVIDO -> Solucionado; senão se PENDENTE -> Em Tratamento
         CASE
             WHEN o.oco_ordemservico IS NULL
                  OR TRIM(COALESCE(o.oco_ordemservico::TEXT, '')) = ''
@@ -173,32 +180,43 @@ WITH ocorrencias_com_status AS (
             ELSE 'EM_ABERTO'
         END AS status
     FROM ocorrencias o
+),
+-- Uma ocorrência = exatamente uma linha. Mesmo total que ocorrencias.
+-- Tipos em vários setores: usa setor de menor set_id. Sem tipo/setor: NULL com uma linha.
+ocorr_com_setor AS (
+    SELECT
+        ocs.oco_id,
+        ocs.oco_datahora,
+        ocs.oco_numero,
+        ocs.oco_bairro,
+        ocs.oco_latitude,
+        ocs.oco_longitude,
+        ocs.status,
+        ocs.tip_id,
+        sub.tip_nome,
+        sub.set_id,
+        sub.set_nome,
+        sub.set_email,
+        sub.set_whatsapp
+    FROM ocorrencias_com_status ocs
+    LEFT JOIN LATERAL (
+        SELECT t.tip_nome, s.set_id, s.set_nome, s.set_email, s.set_whatsapp
+        FROM tipos t
+        JOIN setores_tipos st ON st.stp_tipid = t.tip_id
+        JOIN setores s ON s.set_id = st.stp_setid
+        WHERE t.tip_id = ocs.tip_id
+          AND COALESCE(t.tip_status, 'ATIVO') = 'ATIVO'
+          AND COALESCE(s.set_status, 'ATIVO') = 'ATIVO'
+        ORDER BY s.set_id
+        LIMIT 1
+    ) sub ON true
 )
-SELECT
-    ocs.oco_id,
-    ocs.oco_datahora,
-    ocs.oco_numero,
-    ocs.oco_bairro,
-    ocs.oco_latitude,
-    ocs.oco_longitude,
-    ocs.status,
-    ocs.tip_id,
-    t.tip_nome,
-    -- Setor obtido pelo tipo: tip_id -> setores_tipos -> setores
-    s.set_id,
-    s.set_nome,
-    s.set_email,
-    s.set_whatsapp
-FROM ocorrencias_com_status ocs
-JOIN tipos t ON t.tip_id = ocs.tip_id
-JOIN setores_tipos st ON st.stp_tipid = ocs.tip_id  -- Pelo tipo, busca o setor
-JOIN setores s ON s.set_id = st.stp_setid
-WHERE ocs.tip_id IS NOT NULL
-  AND COALESCE(s.set_status, 'ATIVO') = 'ATIVO'
-  AND COALESCE(t.tip_status, 'ATIVO') = 'ATIVO'
-ORDER BY s.set_id, ocs.oco_bairro, t.tip_nome;
+SELECT oco_id, oco_datahora, oco_numero, oco_bairro, oco_latitude, oco_longitude,
+       status, tip_id, tip_nome, set_id, set_nome, set_email, set_whatsapp
+FROM ocorr_com_setor
+ORDER BY COALESCE(set_id, 0), oco_bairro, COALESCE(tip_nome, '');
 
-COMMENT ON VIEW vw_ocorrencias_status IS 'Ocorrências com status calculado (EM_ABERTO/EM_TRATAMENTO/SOLUCIONADO) por setor. Uma ocorrência com tipo em múltiplos setores aparece em múltiplas linhas. Filtrar por oco_datahora no SELECT.';
+COMMENT ON VIEW vw_ocorrencias_status IS 'Uma linha por ocorrência – mesmo total que ocorrencias. Status por OS. Sem tipo/setor: set_nome/tip_nome NULL.';
 
 -- =============================================================================
 -- SCRIPT DE POPULAÇÃO FINAL - SISTEMA MAPZER

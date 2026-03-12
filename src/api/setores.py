@@ -11,13 +11,17 @@ def _engine():
 
 
 def listar_setores() -> list[dict]:
-    """Lista todos os setores ordenados por nome."""
+    """Lista todos os setores ordenados por nome, com tip_nomes vinculados."""
     eng = _engine()
     with eng.connect() as conn:
         r = conn.execute(text("""
-            SELECT set_id, set_nome, set_email, set_whatsapp, COALESCE(set_status, 'ATIVO'), create_at, update_at
-            FROM setores
-            ORDER BY set_nome
+            SELECT s.set_id, s.set_nome, s.set_email, s.set_whatsapp, COALESCE(s.set_status, 'ATIVO'),
+                   s.create_at, s.update_at,
+                   (SELECT COALESCE(array_agg(t.tip_nome ORDER BY t.tip_nome), ARRAY[]::text[])
+                    FROM setores_tipos st JOIN tipos t ON t.tip_id = st.stp_tipid
+                    WHERE st.stp_setid = s.set_id) AS tip_nomes
+            FROM setores s
+            ORDER BY s.set_nome
         """))
         rows = r.fetchall()
     return [
@@ -29,6 +33,7 @@ def listar_setores() -> list[dict]:
             "set_status": row[4] or "ATIVO",
             "create_at": row[5].isoformat() if row[5] else None,
             "update_at": row[6].isoformat() if row[6] else None,
+            "tip_nomes": list(row[7]) if row[7] else [],
         }
         for row in rows
     ]

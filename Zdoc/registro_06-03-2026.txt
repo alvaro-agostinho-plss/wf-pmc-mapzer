@@ -19,3 +19,13 @@ TARDE — Docker, autenticação e UI:
 • Carregamento .env: load_dotenv com caminho absoluto em sso.py e run_server.py
 • UI Lotes: Grid em tabela (Ocorrência, OS, Processamento, E-mail, Ações)
 • Layout: Removido aviso-requisitos, área ampliada 1400px, botões padronizados
+
+REGISTRO DE ATIVIDADES - 12/03/2026
+Projeto: Mapzer | Tipo: Desenvolvimento de sistema
+
+• Recuo e destaque visual no card de tipos por setor (borda, fundo, cor diferenciada)
+• Listar tipos vinculados a mais de um setor abaixo da mensagem "Todos os tipos estão vinculados"
+• OMITIR_SEM_LOCALIZACAO: excluir do relatório ocorrências sem bairro e "Não identificado" (não listar nem contar no total)
+• TIPO_SEM_LOCALIZACAO no .env: valores configuráveis para tipos sem localização
+• Normalização na comparação: _norm_bairro (acentos, espaços múltiplos) para capturar variações
+• Layout dos relatórios: títulos das colunas abaixo do título do setor, repetidos em cada seção

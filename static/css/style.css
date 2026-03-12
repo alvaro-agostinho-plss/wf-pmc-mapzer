@@ -115,6 +115,21 @@ header p { margin: 0; color: #666; font-size: 0.9rem; }
   gap: 1rem;
   margin-bottom: 1rem;
 }
+
+.tipos-sem-setor {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  min-height: 2.5rem;
+  background: #fff8e1;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.tipos-sem-setor-label { font-weight: 600; color: #333; }
+.tipos-sem-setor-lista { color: #333; }
+.tipos-sem-setor-ok-box { background: #e8f5e9 !important; border-color: #81c784 !important; }
+.tipos-sem-setor-ok { color: #2e7d32; }
+.tipos-multiplos-setores { display: block; margin-top: 0.35rem; color: #1565c0; font-size: 0.9rem; }
 .btn-incluir-lote {
   padding: 0.5rem 1rem;
   border: none;
@@ -602,10 +617,60 @@ header p { margin: 0; color: #666; font-size: 0.9rem; }
 .setores-grid .col-whatsapp { width: 22%; }
 .setores-grid .col-status { width: 8%; }
 .setores-grid .col-acoes { width: 18%; }
+.btn-expand-setor {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  margin-right: 0.5rem;
+  color: #555;
+  font-size: 0.75rem;
+}
+.btn-expand-setor:hover { color: #1565c0; }
+.setor-detail-row td {
+  padding: 0 !important;
+  vertical-align: top;
+  border-top: none;
+  background: #fafafa;
+}
+.setor-tipos-card {
+  border-left: 3px solid #1565c0;
+  padding: 0.75rem 1rem 0.75rem 1rem;
+  margin: 0 0.5rem 0.5rem;
+  font-size: 0.85rem;
+  color: #546e7a;
+  background: #e8eef5;
+  border-radius: 0 4px 4px 0;
+}
+.setor-tipos-card .tipos-vazio { color: #888; font-style: italic; }
 .tipos-grid .col-nome { width: 65%; }
 .tipos-grid .col-status { width: 15%; }
 .tipos-grid .col-acoes { width: 20%; }
 #setoresContainer.setores-table { padding: 0; }
+.btn-expand-setor {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  color: #1565c0;
+  font-size: 0.85rem;
+}
+.btn-expand-setor:hover { color: #0d47a1; }
+.setor-detail-row td {
+  padding: 0.5rem 1rem !important;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  vertical-align: top;
+}
+.setor-tipos-card {
+  border-left: 3px solid #1565c0;
+  font-size: 0.85rem;
+  color: #546e7a;
+  padding: 0.5rem 1rem 0.5rem 1rem;
+  background: #e8eef5;
+  border-radius: 0 4px 4px 0;
+}
+.setor-tipos-card .tipos-vazio { color: #888; font-style: italic; }
 #tiposContainer.tipos-table { padding: 0; }
 
 @media (max-width: 768px) {

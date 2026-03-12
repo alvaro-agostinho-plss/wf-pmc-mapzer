@@ -40,7 +40,9 @@
 </table>
 
 <table class="tabela-dados">
-    <thead>
+    <tbody>
+        {% for setor in setores %}
+        <tr><td colspan="5" class="header-departamento">{{ setor.ordem }}. {{ setor.nome|upper }}</td></tr>
         <tr>
             <th>Bairro</th>
             <th>Tipo de Ocorrência</th>
@@ -48,10 +50,6 @@
             <th class="txt-center">Em Tratamento (Com OS)</th>
             <th class="txt-center">Solucionado</th>
         </tr>
-    </thead>
-    <tbody>
-        {% for setor in setores %}
-        <tr><td colspan="5" class="header-departamento">{{ setor.ordem }}. {{ setor.nome|upper }}</td></tr>
         {% for bloco in setor.blocos_bairro %}
             {% for linha in bloco.linhas %}
             <tr>

@@ -22,6 +22,16 @@ TEMPLATE_EMAIL_GERAL = "email_geral.html"
 TEMPLATE_EMAIL_SECRETARIA = "email_secretaria.html"
 
 
+def _norm_bairro(s) -> str:
+    """Normaliza bairro para comparação: acentos, lowercase, colapsa espaços."""
+    if s is None or (isinstance(s, float) and pd.isna(s)):
+        return ""
+    s = str(s).strip()
+    if not s or s.lower() in ("nan", "none", "null"):
+        return ""
+    return " ".join(normalizar_tipo(s).split())
+
+
 def _col(df: pd.DataFrame, *candidates: str) -> str | None:
     """Retorna primeira coluna que existe no DataFrame."""
     for c in candidates:
@@ -77,6 +87,18 @@ def obter_dados_view(
         raise ConnectionError(f"Erro ao ler view: {e}") from e
 
 
+def _get_status_count(row: pd.Series, key: str) -> int:
+    """Obtém contagem de status do pivot, tentando variações de nome de coluna."""
+    for name in [key, key.lower(), key.replace("_", " ").title()]:
+        if name in row.index:
+            v = row.get(name, 0)
+            try:
+                return int(v) if pd.notna(v) else 0
+            except (TypeError, ValueError):
+                return 0
+    return 0
+
+
 def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
     """
     Agrega dados da view para estrutura dos templates.
@@ -111,24 +133,53 @@ def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
 
     # Agregação: set_id, set_nome, set_email, set_whatsapp, oco_bairro, tip_nome, status -> count
     df = df.copy()
+    if AppConfig().omitir_sem_localizacao and "oco_bairro" in df.columns:
+        _vazio = AppConfig().valores_sem_localizacao
+
+        def _norm_bairro(s):
+            """Normaliza bairro: acentos, lowercase, colapsa espaços."""
+            if not s or not str(s).strip():
+                return ""
+            return " ".join(normalizar_tipo(str(s).strip()).split())
+
+        _vazio_norm = frozenset(_norm_bairro(v) for v in _vazio)
+
+        def _eh_sem_bairro(val):
+            if pd.isna(val):
+                return True
+            s = str(val).strip()
+            if not s or s.lower() in ("nan", "none", "null"):
+                return True
+            return _norm_bairro(s) in _vazio_norm
+
+        mask_sem_bairro = df["oco_bairro"].apply(_eh_sem_bairro)
+        df = df[~mask_sem_bairro].copy()
     for col in ["oco_bairro", "tip_nome"]:
         if col in df.columns:
             df[col] = df[col].fillna("Não identificado")
-    # Normalizar status: ABERTO -> EM_ABERTO (compatibilidade com versões da view)
+    # Normalizar status: garantir EM_ABERTO, EM_TRATAMENTO, SOLUCIONADO (view pode retornar variações)
     if "status" in df.columns:
-        df["status"] = df["status"].replace({"ABERTO": "EM_ABERTO"})
+        df["status"] = df["status"].astype(str).str.strip().str.upper()
+        df["status"] = df["status"].replace({
+            "ABERTO": "EM_ABERTO",
+            "NAN": "EM_ABERTO",
+            "NONE": "EM_ABERTO",
+            "": "EM_ABERTO",
+        })
+        # Valores inválidos -> EM_ABERTO (fallback)
+        mask_invalido = ~df["status"].isin(["EM_ABERTO", "EM_TRATAMENTO", "SOLUCIONADO"])
+        if mask_invalido.any():
+            logger.debug("Status inválidos normalizados para EM_ABERTO: %s", df.loc[mask_invalido, "status"].unique().tolist())
+            df.loc[mask_invalido, "status"] = "EM_ABERTO"
     df["_count"] = 1
+    # Não incluir set_whatsapp no groupby/pivot - NaN quebra pivot_table. Recupera depois.
     cols_aggr = ["set_id", "set_nome", "set_email", "oco_bairro", "tip_nome", "status"]
-    if "set_whatsapp" in df.columns:
-        cols_aggr.insert(3, "set_whatsapp")
     agg = (
         df.groupby(cols_aggr, dropna=False)
         .agg({"_count": "sum"})
         .reset_index()
     )
     idx_cols = ["set_id", "set_nome", "set_email", "oco_bairro", "tip_nome"]
-    if "set_whatsapp" in agg.columns:
-        idx_cols.insert(3, "set_whatsapp")
     pivot = agg.pivot_table(
         index=idx_cols,
         columns="status",
@@ -140,25 +191,31 @@ def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
         if c not in pivot.columns:
             pivot[c] = 0
 
+    # set_whatsapp não está no pivot (removido por causa do NaN). Busca do df original.
+    set_whatsapp_map = df.groupby("set_id")["set_whatsapp"].first().to_dict() if "set_whatsapp" in df.columns else {}
+
     setores_list = []
     setores_por_id = {}
     ordem = 1
     for set_id, grp in pivot.groupby("set_id"):
         set_nome = grp["set_nome"].iloc[0]
         set_email = str(grp["set_email"].iloc[0] or "").strip()
-        set_whatsapp = str(grp["set_whatsapp"].iloc[0] or "").strip() if "set_whatsapp" in grp.columns else ""
+        set_whatsapp = str(set_whatsapp_map.get(set_id, "") or "").strip()
         blocos_bairro = []
         set_total_aberto = 0
         set_total_tratamento = 0
         set_total_solucionado = 0
 
+        _vazio_norm = frozenset(_norm_bairro(v) for v in AppConfig().valores_sem_localizacao)
         for bairro, grp_b in grp.groupby("oco_bairro"):
             bairro_str = str(bairro).strip() if pd.notna(bairro) and str(bairro) != "nan" else "Não identificado"
+            if AppConfig().omitir_sem_localizacao and (not bairro_str or _norm_bairro(bairro_str) in _vazio_norm):
+                continue
             linhas = []
             for _, row in grp_b.iterrows():
-                em_ab = int(row.get("EM_ABERTO", 0) or 0)
-                em_tr = int(row.get("EM_TRATAMENTO", 0) or 0)
-                sol = int(row.get("SOLUCIONADO", 0) or 0)
+                em_ab = _get_status_count(row, "EM_ABERTO")
+                em_tr = _get_status_count(row, "EM_TRATAMENTO")
+                sol = _get_status_count(row, "SOLUCIONADO")
                 # Omitir linhas com todas as colunas zero
                 if em_ab + em_tr + sol == 0:
                     continue
@@ -310,23 +367,38 @@ def gerar_resumo_setor_bairro_tipo(df: pd.DataFrame) -> dict:
 
     periodo = extrair_periodo(df)
     resultados = {}
+    omitir_sem_loc = AppConfig().omitir_sem_localizacao
 
     for setor, grp in df.groupby("setor"):
-        email = grp["email"].iloc[0] if "email" in grp.columns and len(grp) else ""
-        total = len(grp)
+        _col_b = col_bairro if col_bairro else "_bairro"
+        _grp = grp.copy()
+        if not col_bairro:
+            if omitir_sem_loc:
+                continue  # Sem coluna bairro = tudo "Não identificado" -> não contar
+            _grp["_bairro"] = "Não identificado"
+        elif omitir_sem_loc and col_bairro in _grp.columns:
+            _vazio = AppConfig().valores_sem_localizacao
+            _vazio_norm = frozenset(_norm_bairro(v) for v in _vazio)
+            mask_sem_bairro = _grp[col_bairro].apply(
+                lambda x: pd.isna(x) or _norm_bairro(x) in _vazio_norm
+            )
+            _grp = _grp[~mask_sem_bairro].copy()
+        if _grp.empty:
+            continue
+        email = _grp["email"].iloc[0] if "email" in _grp.columns and len(_grp) else ""
+        total = len(_grp)
         total_com_os = 0
         if col_os:
-            total_com_os = grp[col_os].apply(
+            total_com_os = _grp[col_os].apply(
                 lambda x: 1 if x and str(x).strip() and str(x).lower() not in ("nan", "none", "") else 0
             ).sum()
 
         blocos_bairro = []
-        _col_b = col_bairro if col_bairro else "_bairro"
-        _grp = grp.copy()
-        if not col_bairro:
-            _grp["_bairro"] = "Não identificado"
         for bairro, grp_b in _grp.groupby(_col_b):
             bairro_str = str(bairro).strip() if bairro and str(bairro) != "nan" else "Não identificado"
+            _vazio_norm = frozenset(_norm_bairro(v) for v in AppConfig().valores_sem_localizacao)
+            if omitir_sem_loc and (not bairro_str or _norm_bairro(bairro_str) in _vazio_norm):
+                continue
             por_tipo = grp_b.groupby(col_tipo if col_tipo else "setor").size()
             com_os_por_tipo = {}
             if col_os:
@@ -485,7 +557,9 @@ def _executar_relatorios_view(
     dt_fim: datetime | str | None = None,
 ) -> dict[str, bool]:
     """Usa view vw_ocorrencias_status e templates email_geral/email_secretaria."""
-    df = obter_dados_view(dt_inicio, dt_fim, db_config)
+    config = db_config or DatabaseConfig()
+    df = obter_dados_view(dt_inicio, dt_fim, config)
+    logger.info("Relatório: view retornou %d linhas, cols=%s", len(df), list(df.columns) if not df.empty else [])
     dados = agregar_dados_para_relatorio(df)
     smtp = smtp_config or SMTPConfig()
     resultados = {}

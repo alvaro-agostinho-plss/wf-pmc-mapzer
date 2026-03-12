@@ -2,6 +2,7 @@
 
 import logging
 import re
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -309,15 +310,20 @@ def persistir_ordens_servico(
     df: pd.DataFrame,
     config: DatabaseConfig | None = None,
     truncar_antes: bool = False,
+    lot_id: uuid.UUID | str | None = None,
 ) -> int:
     """
     Persiste DataFrame na tabela ordens_servico.
     - truncar_antes=True: substitui toda a tabela.
     - truncar_antes=False: UPSERT por ose_numos (atualiza se existe, insere se não).
+    - lot_id: vincula registros ao lote (ON DELETE CASCADE ao excluir lote).
     """
     config = config or DatabaseConfig()
     engine = obter_engine(config)
     df = df.copy()
+
+    if lot_id is not None:
+        df["lot_id"] = str(lot_id) if isinstance(lot_id, uuid.UUID) else lot_id
 
     if len(df) == 0:
         logger.warning("DataFrame vazio - nada a persistir em ordens_servico")
@@ -329,9 +335,9 @@ def persistir_ordens_servico(
     cols = [c for c in df.columns if c in [
         "ose_numos", "tip_id", "ose_data", "ose_status", "ose_statushistorico",
         "ose_ocorrencias", "ose_departamento", "ose_endereco",
-        "create_by", "updated_by", "create_at", "update_at",
+        "create_by", "updated_by", "create_at", "update_at", "lot_id",
     ]]
-    df = df[cols]
+    df = df[[c for c in cols if c in df.columns]]
     for col in df.select_dtypes(include=["datetime64"]).columns:
         df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -416,6 +422,7 @@ def executar_etl_os(
     caminho_excel: str | Path,
     truncar_antes: bool = False,
     usuario: str = "sistema",
+    lot_id: uuid.UUID | str | None = None,
 ) -> int:
     """
     Fluxo completo: ler Excel OS -> preparar -> persistir em ordens_servico.
@@ -423,4 +430,4 @@ def executar_etl_os(
     """
     df = ler_planilha_os(caminho_excel)
     df = preparar_ordens_servico(df, usuario=usuario)
-    return persistir_ordens_servico(df, truncar_antes=truncar_antes)
+    return persistir_ordens_servico(df, truncar_antes=truncar_antes, lot_id=lot_id)

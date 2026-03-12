@@ -90,12 +90,29 @@ def _garantir_tabela_lotes():
                 SELECT 1 FROM information_schema.tables WHERE table_name = 'lotes'
             """))
             if r.fetchone():
+                _garantir_coluna_lot_id()
                 return
             sql = (ROOT / "scripts" / "migrate_lotes.sql").read_text(encoding="utf-8")
             for stmt in sql.split(";"):
                 stmt = stmt.strip()
                 if stmt and not stmt.startswith("--"):
                     conn.execute(text(stmt))
+            conn.commit()
+            _garantir_coluna_lot_id()
+    except Exception:
+        pass
+
+
+def _garantir_coluna_lot_id():
+    """Adiciona lot_id em ocorrencias e ordens_servico se não existir (migração)."""
+    try:
+        eng = _engine()
+        with eng.connect() as conn:
+            r = conn.execute(text("SELECT 1 FROM information_schema.tables WHERE table_name = 'lotes'"))
+            if not r.fetchone():
+                return
+            sql = (ROOT / "scripts" / "migrate_lot_id.sql").read_text(encoding="utf-8")
+            conn.execute(text(sql))
             conn.commit()
     except Exception:
         pass
@@ -366,10 +383,10 @@ def _atualizar_status(
         conn.commit()
 
 
-def processar_upload_os(upload_id: str, truncar_antes: bool = False, usuario: str = "sistema") -> dict:
+def processar_upload_os(upload_id: str, truncar_antes: bool = False, usuario: str = "sistema", lot_id: str | None = None) -> dict:
     """
     Executa ETL de Ordem de Serviço (planilha com aba 'Ordem de Serviço').
-    Persiste em ordens_servico.
+    Persiste em ordens_servico. lot_id opcional para vincular ao lote.
     """
     u = obter_upload(upload_id)
     if not u:
@@ -379,7 +396,7 @@ def processar_upload_os(upload_id: str, truncar_antes: bool = False, usuario: st
         raise FileNotFoundError(f"Arquivo não encontrado: {caminho_full}")
     _atualizar_status(upload_id, "processando", usuario=usuario)
     try:
-        n = executar_etl_os(caminho_full, truncar_antes=truncar_antes, usuario=usuario)
+        n = executar_etl_os(caminho_full, truncar_antes=truncar_antes, usuario=usuario, lot_id=lot_id)
         _atualizar_status(upload_id, "processado", total=n, usuario=usuario)
         return {"total_registros": n, "status": "processado", "tipo": "ordens_servico"}
     except Exception as e:
@@ -392,10 +409,10 @@ def processar_upload_os(upload_id: str, truncar_antes: bool = False, usuario: st
         raise
 
 
-def processar_upload(upload_id: str, truncar_antes: bool = False, usuario: str = "sistema") -> dict:
+def processar_upload(upload_id: str, truncar_antes: bool = False, usuario: str = "sistema", lot_id: str | None = None) -> dict:
     """
     Executa apenas o ETL (leitura Excel -> persistência em ocorrencias).
-    header_row=5 (Mapzer). Não envia e-mails.
+    header_row=5 (Mapzer). Não envia e-mails. lot_id opcional para vincular ao lote.
     """
     u = obter_upload(upload_id)
     if not u:
@@ -405,7 +422,7 @@ def processar_upload(upload_id: str, truncar_antes: bool = False, usuario: str =
         raise FileNotFoundError(f"Arquivo não encontrado: {caminho_full}")
     _atualizar_status(upload_id, "processando", usuario=usuario)
     try:
-        n = executar_etl(caminho_full, usuario=usuario, truncar_antes=truncar_antes)
+        n = executar_etl(caminho_full, usuario=usuario, truncar_antes=truncar_antes, lot_id=lot_id)
         _atualizar_status(upload_id, "processado", total=n, usuario=usuario)
         return {"total_registros": n, "status": "processado"}
     except Exception as e:
@@ -517,7 +534,7 @@ def processar_lote_por_id(lot_id: str, usuario: str = "sistema") -> dict:
     if not row:
         raise ValueError("Lote não encontrado.")
     upl_ocorr, upl_os = str(row[0]), str(row[1])
-    res_ocorr = processar_upload(upl_ocorr, truncar_antes=True, usuario=usuario)
+    res_ocorr = processar_upload(upl_ocorr, truncar_antes=True, usuario=usuario, lot_id=lot_id)
     u_os = obter_upload(upl_os)
     caminho_os = _get_uploads_dir() / u_os["caminho_armazenado"]
     if not caminho_os.exists():
@@ -530,7 +547,7 @@ def processar_lote_por_id(lot_id: str, usuario: str = "sistema") -> dict:
             f"Inconsistência: {len(faltando)} OS não encontradas na planilha de ocorrências: "
             f"{amostra}{suf}. Verifique se os arquivos são do mesmo período."
         )
-    res_os = processar_upload_os(upl_os, truncar_antes=True, usuario=usuario)
+    res_os = processar_upload_os(upl_os, truncar_antes=True, usuario=usuario, lot_id=lot_id)
     with eng.connect() as conn:
         conn.execute(
             text("""
@@ -580,6 +597,7 @@ def obter_pendentes_para_processar() -> dict | None:
 def processar_lote(usuario: str = "sistema") -> dict:
     """
     Processa o par pendente (ocorrências + OS) e cria registro em lotes.
+    Cria o lote antes de processar para vincular lot_id aos registros.
     Retorna o lote criado.
     """
     par = obter_pendentes_para_processar()
@@ -588,10 +606,21 @@ def processar_lote(usuario: str = "sistema") -> dict:
     upl_ocorr = par["upl_id_ocorrencias"]
     upl_os = par["upl_id_os"]
     _garantir_tabela_lotes()
-    logger.info("Processar lote: upl_ocorr=%s, upl_os=%s", upl_ocorr, upl_os)
+    lot_id = str(uuid.uuid4())
+    eng = _engine()
+    with eng.connect() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO lotes (lot_id, upl_id_ocorrencias, upl_id_os, lot_data_processamento)
+                VALUES (:id, :ocorr, :os, NULL)
+            """),
+            {"id": lot_id, "ocorr": upl_ocorr, "os": upl_os},
+        )
+        conn.commit()
+    logger.info("Processar lote: lot_id=%s, upl_ocorr=%s, upl_os=%s", lot_id, upl_ocorr, upl_os)
     # 1. Processar ocorrências (primeiro, para tip_id na OS)
     logger.info("Processando ocorrências...")
-    res_ocorr = processar_upload(upl_ocorr, truncar_antes=True, usuario=usuario)
+    res_ocorr = processar_upload(upl_ocorr, truncar_antes=True, usuario=usuario, lot_id=lot_id)
     logger.info("Ocorrências processadas: %s registros", res_ocorr["total_registros"])
     # 2. Validar consistência: todas as OS devem existir em ocorrencias
     u_os = obter_upload(upl_os)
@@ -608,18 +637,14 @@ def processar_lote(usuario: str = "sistema") -> dict:
         )
     # 3. Processar OS
     logger.info("Processando OS...")
-    res_os = processar_upload_os(upl_os, truncar_antes=True, usuario=usuario)
-    # 4. Criar lote
-    eng = _engine()
-    import uuid
-    lot_id = str(uuid.uuid4())
+    res_os = processar_upload_os(upl_os, truncar_antes=True, usuario=usuario, lot_id=lot_id)
+    # 4. Atualizar lot_data_processamento
     with eng.connect() as conn:
         conn.execute(
             text("""
-                INSERT INTO lotes (lot_id, upl_id_ocorrencias, upl_id_os, lot_data_processamento)
-                VALUES (:id, :ocorr, :os, CURRENT_TIMESTAMP)
+                UPDATE lotes SET lot_data_processamento = CURRENT_TIMESTAMP WHERE lot_id = :id
             """),
-            {"id": lot_id, "ocorr": upl_ocorr, "os": upl_os},
+            {"id": lot_id},
         )
         conn.commit()
     return {

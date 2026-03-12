@@ -18,6 +18,8 @@ from src.api.setores import (
     obter_setor,
 )
 from src.api.tipos import (
+    listar_tipos_sem_setor,
+    listar_tipos_com_multiplos_setores,
     atualizar_tipo,
     criar_tipo,
     excluir_tipo,
@@ -385,9 +387,29 @@ def excluir_lote_api(lot_id: str, _: dict = Depends(obter_usuario)):
 
 # ========== Setores ==========
 
+@app.get("/api/setores/tipos-sem-vinculo")
+def listar_tipos_sem_setor_api(_: dict = Depends(obter_usuario)):
+    """Tipos que não possuem vínculo com nenhum setor (para exibir na página Setores)."""
+    try:
+        return listar_tipos_sem_setor()
+    except Exception as e:
+        _log_erro(e, "Listar tipos sem setor")
+        raise HTTPException(500, str(e)) from e
+
+
+@app.get("/api/setores/tipos-multiplos-setores")
+def listar_tipos_multiplos_setores_api(_: dict = Depends(obter_usuario)):
+    """Tipos vinculados a mais de um setor (para exibir na página Setores)."""
+    try:
+        return listar_tipos_com_multiplos_setores()
+    except Exception as e:
+        _log_erro(e, "Listar tipos com múltiplos setores")
+        raise HTTPException(500, str(e)) from e
+
+
 @app.get("/api/setores")
 def listar_setores_api(_: dict = Depends(obter_usuario)):
-    """Lista todos os setores."""
+    """Lista todos os setores (retorna array como antes)."""
     try:
         return listar_setores()
     except Exception as e:
@@ -464,6 +486,7 @@ def excluir_setor_api(set_id: int, _: dict = Depends(obter_usuario)):
 
 
 # ========== Tipos de Ocorrência ==========
+
 
 @app.get("/api/tipos")
 def listar_tipos_api(_: dict = Depends(obter_usuario)):

@@ -7,10 +7,10 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-from sqlalchemy import bindparam, create_engine, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.config import DatabaseConfig, carregar_mapeamento, normalizar_tipo
+from src.config import AppConfig, DatabaseConfig, carregar_mapeamento, normalizar_tipo
 from src.models import AUDIT_COLUMNS
 
 logger = logging.getLogger("mapzer")
@@ -231,6 +231,59 @@ def _tipos_por_setor(tipos_lista: list[str], mapa_tipo_setor: dict) -> list[str]
     return list(vistos.values())
 
 
+# Limites geográficos do município/região (ex: Castro-PR)
+def _coordenada_limits():
+    """Retorna limites de coordenadas do .env (LAT_MIN, LAT_MAX, LNG_MIN, LNG_MAX, COORD_PRECISION)."""
+    cfg = AppConfig()
+    return cfg.lat_min, cfg.lat_max, cfg.lng_min, cfg.lng_max, cfg.coord_precision
+
+
+def _validar_coordenadas(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Valida latitude e longitude conforme limites no .env (LAT_MIN, LAT_MAX, LNG_MIN, LNG_MAX).
+    Valores fora do intervalo são definidos como NaN (não serão usados na deduplicação).
+    """
+    lat_min, lat_max, lng_min, lng_max, _ = _coordenada_limits()
+    for col, vmin, vmax in [("oco_latitude", lat_min, lat_max), ("oco_longitude", lng_min, lng_max)]:
+        if col not in df.columns:
+            continue
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+        mascara_invalida = df[col].notna() & ((df[col] < vmin) | (df[col] > vmax))
+        if mascara_invalida.any():
+            n_inv = mascara_invalida.sum()
+            sub = df.loc[mascara_invalida].head(10)
+            exemplos = [(r[col], r.get("oco_numero"), r.get("oco_tipo")) for _, r in sub.iterrows()]
+            logger.warning(
+                "Coordenadas fora do limite - %s: %d registro(s) fora de [%s, %s]. "
+                "Exemplos (valor, oco_numero, tipo): %s",
+                col, n_inv, vmin, vmax, exemplos,
+            )
+            df.loc[mascara_invalida, col] = pd.NA
+    return df
+
+
+def _obter_existentes_lat_lng_tipo(engine):
+    """
+    Retorna set de (lat, lng, tip_id) já existentes, arredondados.
+    Apenas registros com lat, lng e tip_id NOT NULL.
+    """
+    _, _, _, _, prec = _coordenada_limits()
+    try:
+        with engine.connect() as conn:
+            r = conn.execute(text("""
+                SELECT ROUND(oco_latitude::numeric, :prec), ROUND(oco_longitude::numeric, :prec), tip_id
+                FROM ocorrencias
+                WHERE oco_latitude IS NOT NULL AND oco_longitude IS NOT NULL AND tip_id IS NOT NULL
+            """), {"prec": prec})
+            rows = r.fetchall()
+        return {
+            (round(float(row[0]), prec), round(float(row[1]), prec), int(row[2]))
+            for row in rows
+        }
+    except SQLAlchemyError:
+        return set()
+
+
 def _limpar_strings(df: pd.DataFrame) -> pd.DataFrame:
     """Remove espaços em branco e trata valores nulos em colunas objeto."""
     for col in df.select_dtypes(include=["object"]).columns:
@@ -355,6 +408,8 @@ def preparar_dataframe(df: pd.DataFrame, usuario: str = "sistema") -> pd.DataFra
     # tip_id: FK para tipos - resolver a partir de oco_tipo_mapeamento
     if "oco_tipo_mapeamento" in df.columns or "oco_tipo" in df.columns:
         df["tip_id"] = _resolver_tip_ids(df, config=None)
+    # Validar coordenadas: lat [-90, 90], lng [-180, 180]. Inválidas -> NaN
+    df = _validar_coordenadas(df)
     return df
 
 
@@ -402,15 +457,53 @@ def _tabela_existe(engine, nome: str = "ocorrencias") -> bool:
         return r.scalar()
 
 
+def _validar_coordenadas(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Valida lat [-90, 90] e lng [-180, 180].
+    Valores inválidos são convertidos para NaN.
+    """
+    for col, min_val, max_val in [
+        ("oco_latitude", -90, 90),
+        ("oco_longitude", -180, 180),
+    ]:
+        if col not in df.columns:
+            continue
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+        df.loc[(df[col].notna()) & ((df[col] < min_val) | (df[col] > max_val)), col] = pd.NA
+    return df
+
+
+def _obter_existentes_lat_lng_tipo(engine) -> set:
+    """Retorna set de (lat_round, lng_round, tip_id) já existentes no banco."""
+    existentes = set()
+    try:
+        with engine.connect() as conn:
+            r = conn.execute(text("""
+                SELECT ROUND(oco_latitude::numeric, 6), ROUND(oco_longitude::numeric, 6), tip_id
+                FROM ocorrencias
+                WHERE oco_latitude IS NOT NULL AND oco_longitude IS NOT NULL AND tip_id IS NOT NULL
+            """))
+            for row in r.fetchall():
+                lat, lng, tip = row[0], row[1], row[2]
+                if lat is not None and lng is not None and tip is not None:
+                    existentes.add((round(float(lat), 6), round(float(lng), 6), int(tip)))
+    except SQLAlchemyError:
+        pass
+    return existentes
+
+
 def persistir_ocorrencias(
     df: pd.DataFrame,
     config: DatabaseConfig | None = None,
     truncar_antes: bool = False,
+    lot_id: uuid.UUID | str | None = None,
 ) -> int:
     """
     Persiste DataFrame na tabela ocorrencias (schema init_db.sql).
-    - truncar_antes=True: substitui toda a tabela (evita duplicar em primeiro processamento).
-    - truncar_antes=False (reprocessar): remove apenas registros com oco_numero do DF e reinsere (evita duplicar).
+    - truncar_antes=True: substitui toda a tabela.
+    - truncar_antes=False: filtra duplicatas (lat, lng, tip_id). Não insere se já existir.
+    - lot_id: vincula registros ao lote (ON DELETE CASCADE ao excluir lote).
+    Coordenadas inválidas (fora de lat [-90,90] e lng [-180,180]) foram convertidas em NaN em preparar_dataframe.
     """
     config = config or DatabaseConfig()
     engine = obter_engine(config)
@@ -421,6 +514,9 @@ def persistir_ocorrencias(
         "oco_ordemservico", "oco_imagem", "create_by", "updated_by", "create_at", "update_at",
     ]
     cols = [c for c in colunas_esperadas if c in df.columns]
+    if lot_id is not None:
+        df["lot_id"] = str(lot_id) if isinstance(lot_id, uuid.UUID) else lot_id
+        cols = cols + ["lot_id"]
     df = df[cols]
     for col in df.select_dtypes(include=["datetime64"]).columns:
         df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -430,14 +526,40 @@ def persistir_ocorrencias(
                 if truncar_antes:
                     conn.execute(text("TRUNCATE TABLE ocorrencias RESTART IDENTITY CASCADE"))
                     conn.commit()
-                elif "oco_numero" in df.columns and len(df) > 0:
-                    numeros = [int(x) for x in df["oco_numero"].dropna().unique() if pd.notna(x)]
-                    if numeros:
-                        stmt = text("DELETE FROM ocorrencias WHERE oco_numero IN :nums").bindparams(
-                            bindparam("nums", expanding=True)
+                else:
+                    existentes = _obter_existentes_lat_lng_tipo(engine)
+                    n_antes = len(df)
+                    _, _, _, _, prec = _coordenada_limits()
+                    def _chave_dup(row):
+                        lat, lng, tip = row.get("oco_latitude"), row.get("oco_longitude"), row.get("tip_id")
+                        if pd.isna(lat) or pd.isna(lng) or pd.isna(tip):
+                            return None
+                        return (round(float(lat), prec), round(float(lng), prec), int(tip))
+                    duplicatas_coords = []
+                    mask_manter = []
+                    for idx, row in df.iterrows():
+                        k = _chave_dup(row)
+                        if k is None:
+                            mask_manter.append(True)
+                        elif k in existentes:
+                            mask_manter.append(False)
+                            if len(duplicatas_coords) < 10:
+                                oco_num = row.get("oco_numero", "")
+                                oco_tipo = row.get("oco_tipo", "")
+                                duplicatas_coords.append((k[0], k[1], k[2], oco_num, oco_tipo))
+                        else:
+                            mask_manter.append(True)
+                            existentes.add(k)
+                    df = df[mask_manter].reset_index(drop=True)
+                    n_dup = n_antes - len(df)
+                    if n_dup > 0:
+                        logger.warning(
+                            "Registros repetidos (mesma lat, lng e tipo) ignorados: %d. "
+                            "Exemplos (lat, lng, tip_id, oco_numero, tipo): %s",
+                            n_dup, duplicatas_coords,
                         )
-                        conn.execute(stmt, {"nums": numeros})
-                        conn.commit()
+        if len(df) == 0:
+            return 0
         df.to_sql(
             "ocorrencias",
             engine,
@@ -457,6 +579,7 @@ def executar_etl(
     usuario: str = "sistema",
     truncar_antes: bool = False,
     header_row: int | None = None,
+    lot_id: uuid.UUID | str | None = None,
 ) -> int:
     """
     Fluxo completo: ler Excel -> tratar -> persistir em ocorrencias.
@@ -473,4 +596,4 @@ def executar_etl(
                 conn.execute(text("TRUNCATE TABLE ocorrencias RESTART IDENTITY CASCADE"))
                 conn.commit()
         return 0
-    return persistir_ocorrencias(df, truncar_antes=truncar_antes)
+    return persistir_ocorrencias(df, truncar_antes=truncar_antes, lot_id=lot_id)

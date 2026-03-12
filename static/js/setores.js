@@ -62,10 +62,76 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+function renderTiposSemSetor(el, tipos, tiposMultiplosSetores = []) {
+  if (!el) return;
+  el.classList.remove("tipos-sem-setor-ok-box");
+  if (!Array.isArray(tipos) || !tipos.length) {
+    let html = '<span class="tipos-sem-setor-ok">Todos os tipos estão vinculados a setores.</span>';
+    const mult = Array.isArray(tiposMultiplosSetores) ? tiposMultiplosSetores : [];
+    const nomesMult = mult.map(t => String(t.tip_nome || t.nome || "").trim()).filter(Boolean);
+    if (nomesMult.length) {
+      const textoMult = nomesMult.map(escapeHtml).join(", ");
+      html += `<br><span class="tipos-multiplos-setores">Tipos vinculados a mais de um setor: ${textoMult}</span>`;
+    }
+    el.innerHTML = html;
+    el.style.display = "block";
+    el.classList.add("tipos-sem-setor-ok-box");
+    return;
+  }
+  const nomes = tipos.map(t => String(t.tip_nome || t.nome || "").trim()).filter(Boolean);
+  if (!nomes.length) {
+    let html = '<span class="tipos-sem-setor-ok">Todos os tipos estão vinculados a setores.</span>';
+    const mult = Array.isArray(tiposMultiplosSetores) ? tiposMultiplosSetores : [];
+    const nomesMult = mult.map(t => String(t.tip_nome || t.nome || "").trim()).filter(Boolean);
+    if (nomesMult.length) {
+      const textoMult = nomesMult.map(escapeHtml).join(", ");
+      html += `<br><span class="tipos-multiplos-setores">Tipos vinculados a mais de um setor: ${textoMult}</span>`;
+    }
+    el.innerHTML = html;
+    el.style.display = "block";
+    el.classList.add("tipos-sem-setor-ok-box");
+    return;
+  }
+  const texto = nomes.map(escapeHtml).join(", ");
+  el.innerHTML = `<span class="tipos-sem-setor-label">Tipos sem associação com setor: </span><span class="tipos-sem-setor-lista">${texto}</span>`;
+  el.style.display = "block";
+}
+
 async function loadSetores() {
+  const elTiposSemSetor = document.getElementById("tiposSemSetor");
   try {
     const r = await authFetch("/api/setores");
-    const items = await r.json();
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || "Erro ao carregar setores");
+    const items = Array.isArray(data) ? data : [];
+    let tiposSemVinculo = [];
+    let tiposMultiplosSetores = [];
+    try {
+      const r2 = await authFetch("/api/setores/tipos-sem-vinculo");
+      if (r2.ok) {
+        const t = await r2.json();
+        tiposSemVinculo = Array.isArray(t) ? t : [];
+      }
+    } catch (_) { /* tipos sem vínculo: manter vazio se falhar */ }
+    try {
+      const r3 = await authFetch("/api/setores/tipos-multiplos-setores");
+      if (r3.ok) {
+        const m = await r3.json();
+        tiposMultiplosSetores = Array.isArray(m) ? m : [];
+      }
+    } catch (_) { /* tipos múltiplos setores: manter vazio se falhar */ }
+    if (elTiposSemSetor) {
+      renderTiposSemSetor(elTiposSemSetor, tiposSemVinculo, tiposMultiplosSetores);
+    } else {
+      const parent = document.querySelector(".acoes-lote")?.nextElementSibling?.parentElement || document.querySelector("main");
+      if (parent) {
+        const div = document.createElement("div");
+        div.id = "tiposSemSetor";
+        div.className = "tipos-sem-setor";
+        parent.insertBefore(div, document.getElementById("setoresContainer")?.parentElement || parent.firstChild);
+        renderTiposSemSetor(div, tiposSemVinculo, tiposMultiplosSetores);
+      }
+    }
     if (!items.length) {
       setoresContainer.innerHTML = '<p class="empty">Nenhum setor cadastrado. Clique em "Novo setor" para começar.</p>';
       setoresContainer.classList.remove("setores-table");
@@ -97,24 +163,51 @@ async function loadSetores() {
       items.forEach(s => {
         document.querySelector(`[data-action="editar"][data-id="${s.id}"]`)?.addEventListener("click", () => abrirEditar(s.id));
         document.querySelector(`[data-action="excluir"][data-id="${s.id}"]`)?.addEventListener("click", () => excluirSetor(s.id, s.set_nome));
+        document.querySelector(`.btn-expand-setor[data-setor-id="${s.id}"]`)?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const detailRow = document.querySelector(`.setor-detail-row[data-setor-id="${s.id}"]`);
+          const icon = e.currentTarget.querySelector("i");
+          if (detailRow && icon) {
+            const isHidden = detailRow.style.display === "none" || !detailRow.style.display;
+            detailRow.style.display = isHidden ? "table-row" : "none";
+            const temTipos = (s.tip_nomes || []).length > 0;
+            icon.className = `fa-solid fa-chevron-${isHidden ? "up" : (temTipos ? "down" : "right")}`;
+          }
+        });
       });
     }
   } catch (e) {
     setoresContainer.innerHTML = `<p class="empty">Erro: ${escapeHtml(e.message)}</p>`;
     setoresContainer.classList.remove("setores-table");
+    if (elTiposSemSetor) elTiposSemSetor.innerHTML = "";
   }
 }
 
 function renderSetorRow(s) {
+  const tipNomes = Array.isArray(s.tip_nomes) ? s.tip_nomes : [];
+  const temTipos = tipNomes.length > 0;
+  const tiposTexto = tipNomes.map(escapeHtml).join(", ");
   return `
-    <tr class="lote-row" data-setor-id="${s.id}">
-      <td class="col-nome">${escapeHtml(s.set_nome)}</td>
+    <tr class="lote-row setor-row" data-setor-id="${s.id}">
+      <td class="col-nome">
+        <button type="button" class="btn-expand-setor" data-setor-id="${s.id}" data-tem-tipos="${temTipos}" title="${temTipos ? "Expandir tipos" : "Sem tipos vinculados"}">
+          <i class="fa-solid fa-chevron-${temTipos ? "down" : "right"}"></i>
+        </button>
+        ${escapeHtml(s.set_nome)}
+      </td>
       <td class="col-email">${escapeHtml(s.set_email || "—")}</td>
       <td class="col-whatsapp">${escapeHtml(s.set_whatsapp || "—")}</td>
       <td class="col-status">${escapeHtml(s.set_status === "INATIVO" ? "Inativo" : "Ativo")}</td>
       <td class="col-acoes">
         <button data-action="editar" data-id="${s.id}" class="btn-processar-lote btn-lote" title="Editar">Editar</button>
         <button data-action="excluir" data-id="${s.id}" class="btn-excluir-lote btn-lote" title="Excluir">Excluir</button>
+      </td>
+    </tr>
+    <tr class="setor-detail-row" data-setor-id="${s.id}" style="display: none;">
+      <td colspan="5">
+        <div class="setor-tipos-card">
+          ${temTipos ? tiposTexto : '<span class="tipos-vazio">Nenhum tipo vinculado a este setor</span>'}
+        </div>
       </td>
     </tr>
   `;
