@@ -1,5 +1,6 @@
 """Lógica de upload e processamento de planilhas."""
 
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -563,12 +564,47 @@ def processar_lote_por_id(lot_id: str, usuario: str = "sistema") -> dict:
     }
 
 
-def enviar_emails_por_lote(lot_id: str) -> dict:
-    """Envia relatórios por e-mail e atualiza lot_data_envio_email do lote."""
+def _persistir_envio_email(
+    lot_id: str,
+    dt_inicio: str | None,
+    dt_fim: str | None,
+    resultado: dict,
+    usuario: str = "sistema",
+) -> None:
+    """Registra envio na tabela envios_email (auditoria)."""
+    try:
+        eng = _engine()
+        with eng.connect() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO envios_email (lot_id, env_dt_inicio, env_dt_fim, env_resultado, env_usuario)
+                    VALUES (:lot_id, CAST(:dt_inicio AS DATE), CAST(:dt_fim AS DATE), CAST(:resultado AS JSONB), :usuario)
+                """),
+                {
+                    "lot_id": lot_id,
+                    "dt_inicio": dt_inicio or None,
+                    "dt_fim": dt_fim or None,
+                    "resultado": json.dumps(resultado),
+                    "usuario": usuario or "sistema",
+                },
+            )
+            conn.commit()
+    except Exception as e:
+        logger.warning("Não foi possível registrar envio em envios_email: %s", e)
+
+
+def enviar_emails_por_lote(
+    lot_id: str,
+    dt_inicio: str | None = None,
+    dt_fim: str | None = None,
+    usuario: str = "sistema",
+) -> dict:
+    """Envia relatórios por e-mail e atualiza lot_data_envio_email do lote.
+    dt_inicio, dt_fim: filtro de período (YYYY-MM-DD) para os dados e variável periodo no e-mail."""
     val = validar_envio_email()
     if not val["pode_enviar"]:
         raise ValueError(val["mensagem"])
-    result = executar_relatorios()
+    result = executar_relatorios(dt_inicio=dt_inicio, dt_fim=dt_fim)
     _garantir_tabela_lotes()
     eng = _engine()
     with eng.connect() as conn:
@@ -577,6 +613,7 @@ def enviar_emails_por_lote(lot_id: str) -> dict:
             {"id": lot_id},
         )
         conn.commit()
+    _persistir_envio_email(lot_id, dt_inicio, dt_fim, result, usuario)
     return result
 
 
@@ -715,7 +752,7 @@ def excluir_lote(lot_id: str) -> bool:
     return True
 
 
-def enviar_emails() -> dict:
+def enviar_emails(usuario: str = "sistema") -> dict:
     """
     Envia relatórios por e-mail com base nos dados já carregados em ocorrencias.
     Obrigatório ter ocorrencias E ordens_servico com dados.
@@ -725,11 +762,19 @@ def enviar_emails() -> dict:
     if not val["pode_enviar"]:
         raise ValueError(val["mensagem"])
     result = executar_relatorios()
-    # Atualiza data de envio no lote mais recente
     _garantir_tabela_lotes()
+    lot_id = None
     try:
         eng = _engine()
         with eng.connect() as conn:
+            r = conn.execute(
+                text("""
+                    SELECT lot_id FROM lotes ORDER BY lot_data_processamento DESC LIMIT 1
+                """),
+            )
+            row = r.fetchone()
+            if row:
+                lot_id = str(row[0])
             conn.execute(
                 text("""
                     UPDATE lotes SET lot_data_envio_email = CURRENT_TIMESTAMP
@@ -737,6 +782,8 @@ def enviar_emails() -> dict:
                 """),
             )
             conn.commit()
+        if lot_id:
+            _persistir_envio_email(lot_id, None, None, result, usuario)
     except Exception:
         pass
     return result

@@ -197,7 +197,7 @@ function renderSetorRow(s) {
       </td>
       <td class="col-email">${escapeHtml(s.set_email || "—")}</td>
       <td class="col-whatsapp">${escapeHtml(s.set_whatsapp || "—")}</td>
-      <td class="col-status">${escapeHtml(s.set_status === "INATIVO" ? "Inativo" : "Ativo")}</td>
+      <td class="col-status"><span class="status-badge status-${String(s.set_status || "ATIVO").toUpperCase() === "INATIVO" ? "inativo" : "ativo"}">${escapeHtml(String(s.set_status || "ATIVO").toUpperCase() === "INATIVO" ? "Inativo" : "Ativo")}</span></td>
       <td class="col-acoes">
         <button data-action="editar" data-id="${s.id}" class="btn-processar-lote btn-lote" title="Editar">Editar</button>
         <button data-action="excluir" data-id="${s.id}" class="btn-excluir-lote btn-lote" title="Excluir">Excluir</button>

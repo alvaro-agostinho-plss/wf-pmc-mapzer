@@ -322,7 +322,8 @@ def preparar_dataframe(df: pd.DataFrame, usuario: str = "sistema") -> pd.DataFra
     )
     if col_tipo:
         # 1 registro por SETOR (só divide quando tipos são de setores diferentes)
-        mapa_tipo_setor = carregar_mapeamento()
+        # Inclui tipos inativos na importação: dados da planilha são importados mesmo que tipo esteja inativo
+        mapa_tipo_setor = carregar_mapeamento(include_tipos_inativos=True)
         df["_tipos_lista"] = df[col_tipo].astype(str).apply(_extrair_todos_tipos)
         df["_tipos_por_setor"] = df["_tipos_lista"].apply(
             lambda lst: _tipos_por_setor(lst, mapa_tipo_setor) if lst else []

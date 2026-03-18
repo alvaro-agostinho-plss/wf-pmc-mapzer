@@ -29,10 +29,16 @@ MAPEAMENTO_OCORRENCIA_TIPO = {
 }
 
 
+def _tem_tipo_na_ocorrencias(val: str) -> bool:
+    """Retorna True se o valor da coluna Ocorrências indica um tipo (ex: Fale156, Fale156: -, rachadura)."""
+    return _extrair_tipo_ocorrencia(val) is not None
+
+
 def _extrair_tipo_ocorrencia(val: str) -> str | None:
     """
     Extrai tipo único do campo Ocorrências.
     - camelCase (rachadura, lixoIrregular) -> mapeia para tip_nome
+    - "Fale156: -" ou "Fale156" -> retorna "Fale156" para lookup LIKE
     - "X ocorrências" (múltiplas) -> retorna None (tip_id NULL)
     """
     if pd.isna(val) or not str(val).strip():
@@ -41,9 +47,16 @@ def _extrair_tipo_ocorrencia(val: str) -> str | None:
     # Múltiplas ocorrências: "5 ocorrências", "2 ocorrência"
     if re.search(r"^\d+\s*ocorr[eê]ncias?$", s, re.I):
         return None
+    # Formato "Fale156: -" ou "Fale156: algo" -> parte antes do ":"
+    if ":" in s:
+        parte = s.split(":")[0].strip()
+        if parte:
+            # Primeiro tenta mapeamento; senão retorna a parte para LIKE
+            key = normalizar_tipo(parte).replace(" ", "")
+            return MAPEAMENTO_OCORRENCIA_TIPO.get(key) or parte
     # camelCase -> chave para lookup
     key = normalizar_tipo(s).replace(" ", "")
-    return MAPEAMENTO_OCORRENCIA_TIPO.get(key)
+    return MAPEAMENTO_OCORRENCIA_TIPO.get(key) or (s if s else None)
 
 
 def _resolver_tip_id_por_ocorrencia(ose_numos: int | float, engine) -> int | None:
@@ -162,17 +175,27 @@ def _resolver_tip_id_os(val_ocorrencias: str, ose_numos: int | float | None, eng
     tip_id = _resolver_tip_id_por_ocorrencia(ose_numos, engine)
     if tip_id is not None:
         return tip_id
-    # 2. Fallback: mapeamento coluna Ocorrências (rachadura, lixoIrregular, etc.)
+    # 2. Fallback: mapeamento coluna Ocorrências (rachadura, lixoIrregular, Fale156, Fale156: -, etc.)
     tip_nome = _extrair_tipo_ocorrencia(val_ocorrencias)
     if tip_nome:
         try:
             with engine.connect() as conn:
+                # 2a) Match exato
                 r = conn.execute(
                     text("SELECT tip_id FROM tipos WHERE tip_nome = :nome"),
                     {"nome": tip_nome},
                 )
                 row = r.fetchone()
-            return row[0] if row else None
+                if row:
+                    return row[0]
+                # 2b) LIKE no tipo (ex: Fale156 -> tip_nome ILIKE '%Fale156%')
+                r = conn.execute(
+                    text("SELECT tip_id FROM tipos WHERE tip_nome ILIKE :pattern LIMIT 1"),
+                    {"pattern": f"%{tip_nome}%"},
+                )
+                row = r.fetchone()
+                if row:
+                    return row[0]
         except SQLAlchemyError:
             pass
     return None
@@ -379,6 +402,8 @@ def validar_os_contra_ocorrencias(
     """
     Verifica se todos os ose_numos da planilha OS existem na tabela ocorrencias.
     Um OS é considerado encontrado se: oco_ordemservico LIKE '%num%' OU oco_numero = num.
+    Se a OS NÃO está em ocorrencias mas a coluna Ocorrências tem um tipo (ex: Fale156: -),
+    permite a importação (não adiciona a faltando).
     Retorna (ok, lista de ose_numos NÃO encontrados).
     """
     config = config or DatabaseConfig()
@@ -387,13 +412,24 @@ def validar_os_contra_ocorrencias(
     df = preparar_ordens_servico(df)
     if "ose_numos" not in df.columns or len(df) == 0:
         return True, []
+    # Mapa: ose_numos -> True se alguma linha tem tipo na coluna Ocorrências
+    col_ocorr = "ose_ocorrencias" if "ose_ocorrencias" in df.columns else None
+    nums_com_tipo = set()
+    if col_ocorr:
+        for _, row in df.iterrows():
+            try:
+                num = int(float(row["ose_numos"]))
+            except (ValueError, TypeError):
+                continue
+            if _tem_tipo_na_ocorrencias(row.get(col_ocorr)):
+                nums_com_tipo.add(num)
     nums = []
     for x in df["ose_numos"].dropna().unique():
         try:
             nums.append(int(float(x)))
         except (ValueError, TypeError):
             continue
-    nums = list(dict.fromkeys(nums))  # únicos, ordem preservada
+    nums = list(dict.fromkeys(nums))
     if not nums:
         return True, []
     faltando = []
@@ -411,10 +447,12 @@ def validar_os_contra_ocorrencias(
                     {"like": f"%{num_str}%", "num": num},
                 )
                 if r.fetchone() is None:
-                    faltando.append(num)
+                    if num not in nums_com_tipo:
+                        faltando.append(num)
         except SQLAlchemyError as e:
             logger.debug("validar_os_contra_ocorrencias num=%s: %s", num, e)
-            faltando.append(num)
+            if num not in nums_com_tipo:
+                faltando.append(num)
     return len(faltando) == 0, faltando
 
 

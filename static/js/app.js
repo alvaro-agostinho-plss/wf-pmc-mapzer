@@ -15,8 +15,14 @@ const modalOSNome = document.getElementById("modalOSNome");
 const modalSalvar = document.getElementById("modalSalvar");
 const modalCancelar = document.getElementById("modalCancelar");
 const btnIncluirLote = document.getElementById("btnIncluirLote");
+const modalPeriodoEmail = document.getElementById("modalPeriodoEmail");
+const periodoInicio = document.getElementById("periodoInicio");
+const periodoFim = document.getElementById("periodoFim");
+const modalPeriodoCancelar = document.getElementById("modalPeriodoCancelar");
+const modalPeriodoEnviar = document.getElementById("modalPeriodoEnviar");
 
 let modalUploadIds = { ocorrencias: null, os: null };
+let loteIdParaEnviar = null;
 
 function showLoad(msg = "Processando...") {
   const wrap = document.createElement("div");
@@ -118,6 +124,12 @@ modalIncluirLote.addEventListener("click", (e) => {
   if (e.target === modalIncluirLote) modalCancelar.click();
 });
 
+if (modalPeriodoEmail) {
+  modalPeriodoCancelar?.addEventListener("click", () => { modalPeriodoEmail.style.display = "none"; });
+  modalPeriodoEnviar?.addEventListener("click", () => confirmarEnvioPeriodo());
+  modalPeriodoEmail.addEventListener("click", (e) => { if (e.target === modalPeriodoEmail) modalPeriodoEmail.style.display = "none"; });
+}
+
 async function loadLotes() {
   try {
     const r = await authFetch("/api/lotes");
@@ -152,8 +164,15 @@ async function loadLotes() {
       `;
       items.forEach(l => {
         document.querySelector(`[data-action="processar"][data-id="${l.id}"]`)?.addEventListener("click", () => processarLote(l.id));
-        document.querySelector(`[data-action="enviar"][data-id="${l.id}"]`)?.addEventListener("click", () => enviarEmailLote(l.id));
         document.querySelector(`[data-action="excluir"][data-id="${l.id}"]`)?.addEventListener("click", () => excluirLote(l.id));
+      });
+      lotesContainer.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-action='enviar']");
+        if (btn && btn.dataset.id && !btn.disabled) {
+          e.preventDefault();
+          e.stopPropagation();
+          abrirModalPeriodoEmail(btn.dataset.id);
+        }
       });
       lotesContainer.querySelectorAll(".btn-download").forEach(link => {
         link.addEventListener("click", (e) => {
@@ -196,7 +215,7 @@ function renderLoteRow(l) {
 
 async function downloadArquivo(uploadId, filename) {
   try {
-    const r = await authFetch("api/uploads/" + uploadId + "/download");
+    const r = await authFetch("/api/uploads/" + uploadId + "/download");
     if (!r.ok) throw new Error("Erro ao baixar");
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
@@ -229,13 +248,43 @@ async function processarLote(id) {
   }
 }
 
-async function enviarEmailLote(id) {
+function abrirModalPeriodoEmail(lotId) {
+  const hoje = new Date();
+  const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+  periodoInicio.value = primeiroDia.toISOString().slice(0, 10);
+  periodoFim.value = ultimoDia.toISOString().slice(0, 10);
+  modalPeriodoEmail.dataset.lotId = lotId;
+  modalPeriodoEmail.style.display = "flex";
+}
+function enviarEmailLote(id) {
   const btn = document.querySelector(`[data-action="enviar"][data-id="${id}"]`);
   if (btn?.disabled) return;
+  abrirModalPeriodoEmail(id);
+}
+async function confirmarEnvioPeriodo() {
+  const lotId = modalPeriodoEmail.dataset.lotId;
+  if (!lotId) return;
+  const dtInicio = periodoInicio.value?.trim();
+  const dtFim = periodoFim.value?.trim();
+  if (!dtInicio || !dtFim) {
+    showToast("Informe período inicial e final", "error");
+    return;
+  }
+  if (new Date(dtFim) < new Date(dtInicio)) {
+    showToast("Período final deve ser igual ou posterior ao inicial", "error");
+    return;
+  }
+  modalPeriodoEmail.style.display = "none";
+  const btn = document.querySelector(`[data-action="enviar"][data-id="${lotId}"]`);
   if (btn) btn.disabled = true;
   showLoad("Enviando e-mails...");
   try {
-    const r = await authFetch(`/api/lotes/${id}/enviar-email`, { method: "POST" });
+    const r = await authFetch(`/api/lotes/${lotId}/enviar-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dt_inicio: dtInicio, dt_fim: dtFim }),
+    });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(Array.isArray(data.detail) ? data.detail.join(" ") : data.detail || "Erro");
     const total = Object.values(data).filter(Boolean).length;

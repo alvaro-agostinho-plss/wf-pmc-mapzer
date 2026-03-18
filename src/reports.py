@@ -99,19 +99,22 @@ def _get_status_count(row: pd.Series, key: str) -> int:
     return 0
 
 
-def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
+def agregar_dados_para_relatorio(
+    df: pd.DataFrame,
+    periodo_override: str | None = None,
+) -> dict:
     """
     Agrega dados da view para estrutura dos templates.
+    periodo_override: quando informado (ex: datas do modal), usa em vez de calcular do df.
     Retorna: {
         periodo, municipio,
         total_aberto, total_tratamento, total_solucionado,
-        setores: [{ordem, nome, email, blocos_bairro, total_aberto, total_tratamento, total_solucionado}],
-        setores_por_id: {set_id: {dados para email_secretaria}}
+        setores: [...], setores_por_id: {...}
     }
     """
     if df.empty:
         return {
-            "periodo": "",
+            "periodo": periodo_override or "",
             "municipio": AppConfig().municipio,
             "total_aberto": 0,
             "total_tratamento": 0,
@@ -120,16 +123,19 @@ def agregar_dados_para_relatorio(df: pd.DataFrame) -> dict:
             "setores_por_id": {},
         }
 
-    col_data = "oco_datahora"
-    if col_data in df.columns:
-        vals = pd.to_datetime(df[col_data], errors="coerce").dropna()
-        if not vals.empty:
-            d_min, d_max = vals.min(), vals.max()
-            periodo = f"{d_min.strftime('%d/%m/%Y')} a {d_max.strftime('%d/%m/%Y')}"
+    if periodo_override:
+        periodo = periodo_override
+    else:
+        col_data = "oco_datahora"
+        if col_data in df.columns:
+            vals = pd.to_datetime(df[col_data], errors="coerce").dropna()
+            if not vals.empty:
+                d_min, d_max = vals.min(), vals.max()
+                periodo = f"{d_min.strftime('%d/%m/%Y')} a {d_max.strftime('%d/%m/%Y')}"
+            else:
+                periodo = ""
         else:
             periodo = ""
-    else:
-        periodo = ""
 
     # Agregação: set_id, set_nome, set_email, set_whatsapp, oco_bairro, tip_nome, status -> count
     df = df.copy()
@@ -560,7 +566,15 @@ def _executar_relatorios_view(
     config = db_config or DatabaseConfig()
     df = obter_dados_view(dt_inicio, dt_fim, config)
     logger.info("Relatório: view retornou %d linhas, cols=%s", len(df), list(df.columns) if not df.empty else [])
-    dados = agregar_dados_para_relatorio(df)
+    periodo_override = None
+    if dt_inicio and dt_fim:
+        try:
+            d_i = pd.to_datetime(dt_inicio)
+            d_f = pd.to_datetime(dt_fim)
+            periodo_override = f"{d_i.strftime('%d/%m/%Y')} a {d_f.strftime('%d/%m/%Y')}"
+        except Exception:
+            pass
+    dados = agregar_dados_para_relatorio(df, periodo_override=periodo_override)
     smtp = smtp_config or SMTPConfig()
     resultados = {}
     periodo = dados.get("periodo", "")

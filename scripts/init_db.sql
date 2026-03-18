@@ -143,6 +143,22 @@ CREATE INDEX IF NOT EXISTS idx_oco_lot_id ON ocorrencias(lot_id);
 CREATE INDEX IF NOT EXISTS idx_ose_lot_id ON ordens_servico(lot_id);
 
 -- =============================================================================
+-- LOG DE ENVIOS DE E-MAIL - AUDITORIA
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS envios_email (
+    env_id SERIAL PRIMARY KEY,
+    lot_id UUID REFERENCES lotes(lot_id) ON DELETE SET NULL,
+    env_dt_inicio DATE,
+    env_dt_fim DATE,
+    env_resultado JSONB NOT NULL DEFAULT '{}',
+    env_usuario VARCHAR(255) DEFAULT 'sistema',
+    create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_envios_email_lot_id ON envios_email(lot_id);
+CREATE INDEX IF NOT EXISTS idx_envios_email_create_at ON envios_email(create_at DESC);
+COMMENT ON TABLE envios_email IS 'Histórico de envios de relatórios por e-mail (auditoria)';
+
+-- =============================================================================
 -- VIEW: OCORRÊNCIAS COM STATUS (Em Aberto / Em Tratamento / Solucionado)
 -- Usar: SELECT * FROM vw_ocorrencias_status WHERE oco_datahora BETWEEN :dt_inicio AND :dt_fim
 -- Python faz GROUP BY set_id, set_nome, oco_bairro, tip_nome para gerar relatórios de email.

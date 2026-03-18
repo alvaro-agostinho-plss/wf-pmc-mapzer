@@ -333,6 +333,12 @@ class CriarLoteBody(BaseModel):
     upl_id_os: str
 
 
+class EnviarEmailBody(BaseModel):
+    """Body opcional para enviar e-mail com filtro por período."""
+    dt_inicio: str | None = None  # YYYY-MM-DD
+    dt_fim: str | None = None
+
+
 @app.post("/api/lotes")
 def criar_lote_api(body: CriarLoteBody, usuario: dict = Depends(obter_usuario)):
     """Cria lote vinculando os dois uploads (ocorrências + OS), sem processar."""
@@ -360,10 +366,13 @@ def processar_lote_api(lot_id: str, usuario: dict = Depends(obter_usuario)):
 
 
 @app.post("/api/lotes/{lot_id}/enviar-email")
-def enviar_email_lote_api(lot_id: str, usuario: dict = Depends(obter_usuario)):
-    """Envia relatórios por e-mail e registra envio no lote."""
+def enviar_email_lote_api(lot_id: str, body: EnviarEmailBody | None = None, usuario: dict = Depends(obter_usuario)):
+    """Envia relatórios por e-mail e registra envio no lote. Body opcional: dt_inicio, dt_fim (YYYY-MM-DD)."""
     try:
-        return enviar_emails_por_lote(lot_id)
+        dt_inicio = body.dt_inicio if body and body.dt_inicio else None
+        dt_fim = body.dt_fim if body and body.dt_fim else None
+        usuario_str = (usuario.get("username") or usuario.get("name") or "sistema") if usuario else "sistema"
+        return enviar_emails_por_lote(lot_id, dt_inicio=dt_inicio, dt_fim=dt_fim, usuario=usuario_str)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     except Exception as e:
@@ -564,10 +573,11 @@ def excluir_tipo_api(tip_id: int, _: dict = Depends(obter_usuario)):
 # ========== E-mails ==========
 
 @app.post("/api/enviar-emails")
-def enviar_emails_api(_: dict = Depends(obter_usuario)):
+def enviar_emails_api(usuario: dict = Depends(obter_usuario)):
     """Envia relatórios por e-mail. Obrigatório ter ocorrências e OS processados."""
     try:
-        return enviar_emails()
+        usuario_str = (usuario.get("username") or usuario.get("name") or "sistema") if usuario else "sistema"
+        return enviar_emails(usuario=usuario_str)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     except Exception as e:

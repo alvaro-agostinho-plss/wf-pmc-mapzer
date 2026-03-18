@@ -14,6 +14,7 @@
       <div class="header-brand">
         <div class="header-logos">
           <img src="__BASE_PATH__/static/img/pmc_brasao.png" alt="Brasão Prefeitura" class="brasao">
+          <img src="__BASE_PATH__/static/img/SMCTI_pmc.jpg" alt="Símbolo SMCTI" class="logo-secretaria">
           <img src="__BASE_PATH__/static/img/logo_mapzer.svg" alt="Mapzer" class="logo-mapzer">
         </div>
       </div>
@@ -70,6 +71,26 @@
       <div class="modal-btns">
         <button type="button" id="modalCancelar" class="btn-logout">Cancelar</button>
         <button type="button" id="modalSalvar" class="btn-processar-lote" disabled>Salvar envio</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Período Envio E-mail -->
+  <div id="modalPeriodoEmail" class="modal-overlay" style="display: none;">
+    <div class="modal-incluir-lote modal-periodo">
+      <h3>Período do relatório</h3>
+      <p class="modal-subtitle">Informe o período inicial e final para filtrar os dados e enviar o e-mail.</p>
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label for="periodoInicio">Período inicial <span class="obrigatorio">*</span></label>
+        <input type="date" id="periodoInicio" required class="form-control">
+      </div>
+      <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label for="periodoFim">Período final <span class="obrigatorio">*</span></label>
+        <input type="date" id="periodoFim" required class="form-control">
+      </div>
+      <div class="modal-btns">
+        <button type="button" id="modalPeriodoCancelar" class="btn-logout">Cancelar</button>
+        <button type="button" id="modalPeriodoEnviar" class="btn-processar-lote">Enviar e-mail</button>
       </div>
     </div>
   </div>

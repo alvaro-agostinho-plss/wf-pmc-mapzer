@@ -16,14 +16,22 @@ body {
 }
 .header-logos .brasao {
   flex-shrink: 0;
-  height: 64px;
+  height: 80px;
   width: auto;
 }
+.header-logos .logo-secretaria {
+  flex-shrink: 0;
+  height: 90px;
+  width: auto;
+
+}
+
 .header-logos .logo-mapzer {
   flex-shrink: 0;
-  height: 28px;
+  height: 22px;
   width: auto;
   opacity: 0.9;
+  padding: 2px;
 }
 
 header {
@@ -476,6 +484,16 @@ header p { margin: 0; color: #666; font-size: 0.9rem; }
   max-height: 95vh;
   overflow-y: auto;
 }
+.modal-periodo .form-group { margin-bottom: 1rem; }
+.modal-periodo .form-group label { display: block; font-weight: 500; margin-bottom: 0.35rem; color: #555; }
+.modal-periodo .form-control {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
 .modal-setor .form-group {
   margin-bottom: 1rem;
 }
@@ -615,7 +633,24 @@ header p { margin: 0; color: #666; font-size: 0.9rem; }
 .setores-grid .col-nome { width: 22%; }
 .setores-grid .col-email { width: 30%; }
 .setores-grid .col-whatsapp { width: 22%; }
-.setores-grid .col-status { width: 8%; }
+.setores-grid .col-status { width: 8%; text-align: center; }
+.setores-grid .col-status .status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  border: 1px solid;
+}
+.setores-grid .col-status .status-badge.status-ativo {
+  border-color: #81c784;
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.setores-grid .col-status .status-badge.status-inativo {
+  border-color: #c62828;
+  background: #ffcdd2;
+  color: #b71c1c;
+}
 .setores-grid .col-acoes { width: 18%; }
 .btn-expand-setor {
   background: none;
@@ -644,7 +679,24 @@ header p { margin: 0; color: #666; font-size: 0.9rem; }
 }
 .setor-tipos-card .tipos-vazio { color: #888; font-style: italic; }
 .tipos-grid .col-nome { width: 65%; }
-.tipos-grid .col-status { width: 15%; }
+.tipos-grid .col-status { width: 15%; text-align: center; }
+.tipos-grid .col-status .status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  border: 1px solid;
+}
+.tipos-grid .col-status .status-badge.status-ativo {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-color: #81c784;
+}
+.tipos-grid .col-status .status-badge.status-inativo {
+  background: #ffcdd2;
+  color: #b71c1c;
+  border-color: #e57373;
+}
 .tipos-grid .col-acoes { width: 20%; }
 #setoresContainer.setores-table { padding: 0; }
 .btn-expand-setor {

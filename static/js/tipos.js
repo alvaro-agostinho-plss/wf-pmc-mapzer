@@ -68,7 +68,7 @@ async function loadTipos() {
     } else {
       tiposContainer.classList.add("tipos-table");
       tiposContainer.innerHTML = `
-        <table class="lotes-grid setores-grid tipos-grid">
+        <table class="lotes-grid tipos-grid">
           <colgroup>
             <col class="col-nome">
             <col class="col-status">
@@ -101,7 +101,7 @@ function renderTipoRow(t) {
   return `
     <tr class="lote-row" data-tipo-id="${t.id}">
       <td class="col-nome">${escapeHtml(t.tip_nome)}</td>
-      <td class="col-status">${escapeHtml(t.tip_status === "INATIVO" ? "Inativo" : "Ativo")}</td>
+      <td class="col-status"><span class="status-badge status-${t.tip_status === "INATIVO" ? "inativo" : "ativo"}">${escapeHtml(t.tip_status === "INATIVO" ? "Inativo" : "Ativo")}</span></td>
       <td class="col-acoes">
         <button data-action="editar" data-id="${t.id}" class="btn-processar-lote btn-lote" title="Editar">Editar</button>
         <button data-action="excluir" data-id="${t.id}" class="btn-excluir-lote btn-lote" title="Excluir">Excluir</button>

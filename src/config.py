@@ -101,38 +101,49 @@ class SMTPConfig(BaseSettings):
     email_copia: str | None = Field(alias="EMAIL_COPIA", default=None)
 
 
-def carregar_mapeamento_db(config: DatabaseConfig | None = None) -> dict:
+def carregar_mapeamento_db(config: DatabaseConfig | None = None, incluir_tipos_inativos: bool = False) -> dict:
     """
     Carrega mapeamento tipo->setor/email das tabelas setores, tipos, setores_tipos.
     Retorna {tipo_normalizado: {"setor": str, "email": str}}
+    incluir_tipos_inativos=True: usado na importação - inclui tipos inativos da planilha.
+    incluir_tipos_inativos=False: usado em relatórios/e-mail - apenas tipos ativos.
     """
     from sqlalchemy import create_engine, text
     from sqlalchemy.exc import SQLAlchemyError
     try:
         cfg = config or DatabaseConfig()
         engine = create_engine(cfg.connection_url)
-        with engine.connect() as conn:
-            r = conn.execute(text("""
+        where_tip = "" if incluir_tipos_inativos else " AND COALESCE(t.tip_status, 'ATIVO') = 'ATIVO'"
+        sql = f"""
                 SELECT t.tip_nome, s.set_nome, s.set_email
                 FROM setores_tipos st
                 JOIN setores s ON st.stp_setid = s.set_id
                 JOIN tipos t ON st.stp_tipid = t.tip_id
+                WHERE COALESCE(s.set_status, 'ATIVO') = 'ATIVO'
+                {where_tip}
                 ORDER BY s.set_id
-            """))
+            """
+        with engine.connect() as conn:
+            r = conn.execute(text(sql))
             rows = r.fetchall()
         return {normalizar_tipo(r[0]): {"setor": r[1], "email": r[2]} for r in rows}
     except (SQLAlchemyError, ImportError):
         return {}
 
 
-def carregar_mapeamento(caminho: Path | str | None = None, usar_banco: bool = True) -> dict:
+def carregar_mapeamento(
+    caminho: Path | str | None = None,
+    usar_banco: bool = True,
+    include_tipos_inativos: bool = False,
+) -> dict:
     """
     Carrega mapeamento tipo->setor/email.
     Prioridade: 1) Banco (setores/tipos/setores_tipos) 2) JSON.
+    include_tipos_inativos=True: para importação, inclui tipos inativos da planilha.
     Retorna sempre: {tipo_normalizado: {"setor": str, "email": str}}
     """
     if usar_banco:
-        mapeamento = carregar_mapeamento_db()
+        mapeamento = carregar_mapeamento_db(incluir_tipos_inativos=include_tipos_inativos)
         if mapeamento:
             return mapeamento
 
