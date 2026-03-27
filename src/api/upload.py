@@ -3,7 +3,7 @@
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -117,6 +117,81 @@ def _garantir_coluna_lot_id():
             conn.commit()
     except Exception:
         pass
+
+
+def _garantir_envios_email_schema() -> None:
+    """env_token, env_resultado (HTML), env_meta (JSON); migra env_resultado jsonb -> texto."""
+    try:
+        eng = _engine()
+        with eng.connect() as conn:
+            r = conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_name = 'envios_email'"
+                ),
+            )
+            if not r.fetchone():
+                return
+            conn.execute(text("ALTER TABLE envios_email ADD COLUMN IF NOT EXISTS env_token VARCHAR(64)"))
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_envios_email_env_token "
+                    "ON envios_email(env_token) WHERE env_token IS NOT NULL"
+                ),
+            )
+            conn.execute(
+                text("ALTER TABLE envios_email ADD COLUMN IF NOT EXISTS env_meta JSONB DEFAULT '{}'::jsonb"),
+            )
+            conn.execute(text("UPDATE envios_email SET env_meta = '{}'::jsonb WHERE env_meta IS NULL"))
+            try:
+                conn.execute(text("ALTER TABLE envios_email ALTER COLUMN env_meta SET NOT NULL"))
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE envios_email ALTER COLUMN env_meta SET DEFAULT '{}'::jsonb"))
+            except Exception:
+                pass
+            r2 = conn.execute(
+                text(
+                    """
+                    SELECT udt_name FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'envios_email'
+                      AND column_name = 'env_resultado'
+                    """
+                ),
+            )
+            row = r2.fetchone()
+            if row and row[0] == "jsonb":
+                conn.execute(
+                    text(
+                        """
+                        UPDATE envios_email SET env_meta = COALESCE(env_resultado, '{}'::jsonb)
+                        WHERE env_meta IS NULL OR env_meta = '{}'::jsonb
+                        """
+                    ),
+                )
+                conn.execute(text("ALTER TABLE envios_email DROP COLUMN env_resultado"))
+                conn.execute(text("ALTER TABLE envios_email ADD COLUMN env_resultado TEXT"))
+            elif not row:
+                conn.execute(text("ALTER TABLE envios_email ADD COLUMN IF NOT EXISTS env_resultado TEXT"))
+            conn.execute(
+                text("ALTER TABLE envios_email ADD COLUMN IF NOT EXISTS env_destinatario VARCHAR(512)"),
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE envios_email ADD COLUMN IF NOT EXISTS env_expires_at TIMESTAMPTZ"
+                ),
+            )
+            conn.commit()
+    except Exception as e:
+        logger.warning("Schema envios_email: %s", e)
+
+
+def _data_expiracao_envio() -> datetime | None:
+    dias = AppConfig().token_expiration_days
+    if dias <= 0:
+        return None
+    return datetime.now(timezone.utc) + timedelta(days=dias)
 
 
 def salvar_arquivo_upload(arquivo: UploadFile, caminho_existente: str | None = None) -> tuple[str, int]:
@@ -568,29 +643,113 @@ def _persistir_envio_email(
     lot_id: str,
     dt_inicio: str | None,
     dt_fim: str | None,
-    resultado: dict,
+    env_token: str,
+    html_relatorio: str,
+    env_meta: dict,
+    env_destinatario: str,
+    env_expires_at: datetime | None,
     usuario: str = "sistema",
 ) -> None:
-    """Registra envio na tabela envios_email (auditoria)."""
+    """Uma linha por destinatário: token, HTML, meta, expiração."""
+    _garantir_envios_email_schema()
     try:
         eng = _engine()
         with eng.connect() as conn:
             conn.execute(
                 text("""
-                    INSERT INTO envios_email (lot_id, env_dt_inicio, env_dt_fim, env_resultado, env_usuario)
-                    VALUES (:lot_id, CAST(:dt_inicio AS DATE), CAST(:dt_fim AS DATE), CAST(:resultado AS JSONB), :usuario)
+                    INSERT INTO envios_email (
+                        lot_id, env_dt_inicio, env_dt_fim, env_token, env_resultado, env_meta,
+                        env_destinatario, env_expires_at, env_usuario
+                    )
+                    VALUES (
+                        :lot_id, CAST(:dt_inicio AS DATE), CAST(:dt_fim AS DATE),
+                        :token, :html, CAST(:meta AS JSONB),
+                        :dest, :exp, :usuario
+                    )
                 """),
                 {
                     "lot_id": lot_id,
                     "dt_inicio": dt_inicio or None,
                     "dt_fim": dt_fim or None,
-                    "resultado": json.dumps(resultado),
+                    "token": env_token,
+                    "html": html_relatorio or "",
+                    "meta": json.dumps(env_meta, ensure_ascii=False),
+                    "dest": (env_destinatario or "")[:512],
+                    "exp": env_expires_at,
                     "usuario": usuario or "sistema",
                 },
             )
             conn.commit()
     except Exception as e:
         logger.warning("Não foi possível registrar envio em envios_email: %s", e)
+
+
+def _persistir_registros_envio_lote(
+    lot_id: str,
+    dt_inicio: str | None,
+    dt_fim: str | None,
+    registros: list[dict],
+    usuario: str = "sistema",
+) -> None:
+    exp = _data_expiracao_envio()
+    for rec in registros:
+        _persistir_envio_email(
+            lot_id,
+            dt_inicio,
+            dt_fim,
+            rec.get("token") or "",
+            rec.get("html") or "",
+            rec.get("env_meta") or {},
+            rec.get("destinatario") or "",
+            exp,
+            usuario,
+        )
+
+
+def obter_html_relatorio_por_token(token: str) -> str | None:
+    """
+    Busca HTML em envios_email pelo env_token (já normalizado, ex.: minúsculo).
+    Expirado: zera env_resultado (lazy) e retorna None.
+    """
+    t = (token or "").strip()
+    if len(t) < 32:
+        return None
+    _garantir_envios_email_schema()
+    try:
+        eng = _engine()
+        with eng.connect() as conn:
+            r = conn.execute(
+                text("""
+                    SELECT env_id, env_resultado, env_expires_at
+                    FROM envios_email
+                    WHERE LOWER(TRIM(env_token)) = LOWER(:t)
+                      AND env_resultado IS NOT NULL
+                      AND LENGTH(TRIM(env_resultado)) > 0
+                    ORDER BY env_id DESC
+                    LIMIT 1
+                """),
+                {"t": t},
+            )
+            row = r.fetchone()
+            if not row or not row[1]:
+                return None
+            env_id, html, exp_at = row[0], row[1], row[2]
+            if exp_at is not None:
+                now = datetime.now(timezone.utc)
+                exp = exp_at
+                if getattr(exp, "tzinfo", None) is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if now > exp:
+                    conn.execute(
+                        text("UPDATE envios_email SET env_resultado = NULL WHERE env_id = :id"),
+                        {"id": env_id},
+                    )
+                    conn.commit()
+                    return None
+            return str(html)
+    except Exception as e:
+        logger.warning("obter_html_relatorio_por_token: %s", e)
+    return None
 
 
 def enviar_emails_por_lote(
@@ -604,7 +763,9 @@ def enviar_emails_por_lote(
     val = validar_envio_email()
     if not val["pode_enviar"]:
         raise ValueError(val["mensagem"])
+    _garantir_envios_email_schema()
     result = executar_relatorios(dt_inicio=dt_inicio, dt_fim=dt_fim)
+    registros = result.pop("__registros_envio", None) or []
     _garantir_tabela_lotes()
     eng = _engine()
     with eng.connect() as conn:
@@ -613,7 +774,8 @@ def enviar_emails_por_lote(
             {"id": lot_id},
         )
         conn.commit()
-    _persistir_envio_email(lot_id, dt_inicio, dt_fim, result, usuario)
+    _persistir_registros_envio_lote(lot_id, dt_inicio, dt_fim, registros, usuario)
+    result["relatorios_publicos_registrados"] = len(registros)
     return result
 
 
@@ -761,7 +923,9 @@ def enviar_emails(usuario: str = "sistema") -> dict:
     val = validar_envio_email()
     if not val["pode_enviar"]:
         raise ValueError(val["mensagem"])
+    _garantir_envios_email_schema()
     result = executar_relatorios()
+    registros = result.pop("__registros_envio", None) or []
     _garantir_tabela_lotes()
     lot_id = None
     try:
@@ -783,7 +947,8 @@ def enviar_emails(usuario: str = "sistema") -> dict:
             )
             conn.commit()
         if lot_id:
-            _persistir_envio_email(lot_id, None, None, result, usuario)
+            _persistir_registros_envio_lote(lot_id, None, None, registros, usuario)
     except Exception:
         pass
+    result["relatorios_publicos_registrados"] = len(registros)
     return result

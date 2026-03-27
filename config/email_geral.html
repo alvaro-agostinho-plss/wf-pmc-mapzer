@@ -1,6 +1,7 @@
 <!--
   Template e-mail geral: todos os setores.
-  Variáveis: periodo, municipio, total_aberto, total_tratamento, total_solucionado, setores
+  Variáveis: periodo, municipio, total_aberto, total_tratamento, total_solucionado, setores, tipos_percentual
+  tipos_percentual: [{tipo, quantidade, percentual}] — quantidade no período e % sobre o total de linhas do recorte
   setores: [{ordem, nome, email, blocos_bairro, total_aberto, total_tratamento, total_solucionado}]
   blocos_bairro: [{bairro, linhas: [{tipo, em_aberto, em_tratamento, solucionado}]}]
 -->
@@ -9,20 +10,44 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #333; margin: 15px; line-height: 1.1; }
-        .titulo-geral { font-size: 16px; font-weight: bold; border-bottom: 2px solid #2e7d32; margin-bottom: 10px; padding-bottom: 3px; color: #1b5e20; text-transform: uppercase; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #333; margin: 15px; line-height: 1.25; }
+        .titulo-geral { font-size: 17px; font-weight: bold; border-bottom: 2px solid #2e7d32; margin-bottom: 10px; padding-bottom: 3px; color: #1b5e20; text-transform: uppercase; }
         .tabela-resumo { width: 100%; border: 1px solid #2e7d32; margin-bottom: 15px; border-collapse: collapse; }
-        .tabela-resumo td { padding: 6px; text-align: center; border: 1px solid #2e7d32; font-weight: bold; font-size: 12px; }
-        .tabela-dados { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .tabela-dados th { background-color: #f1f8e9; border: 1px solid #888; padding: 4px; font-size: 10px; text-transform: uppercase; color: #1b5e20; }
-        .tabela-dados td { border: 1px solid #ccc; padding: 3px 5px; }
-        .header-departamento { background-color: #2e7d32; color: #fff; font-weight: bold; padding: 6px; font-size: 11px; text-transform: uppercase; }
-        .celula-bairro { font-weight: bold; background-color: #f9f9f9; width: 160px; }
-        .linha-total-setor { background-color: #e8f5e9; font-weight: bold; font-size: 11px; color: #1b5e20; }
+        .tabela-resumo td { padding: 6px; text-align: center; border: 1px solid #2e7d32; font-weight: bold; font-size: 13px; }
+        .tabela-dados { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; }
+        .tabela-dados th { background-color: #f1f8e9; border: 1px solid #888; padding: 4px; font-size: 11px; text-transform: uppercase; color: #1b5e20; font-weight: bold; }
+        .tabela-dados td { border: 1px solid #ccc; padding: 3px 5px; font-size: 12px; }
+        .header-departamento { background-color: #2e7d32; color: #fff; font-weight: bold; padding: 6px; font-size: 12px; text-transform: uppercase; }
+        .celula-bairro { font-weight: bold; background-color: #f9f9f9; width: 160px; font-size: 12px; }
+        /* Mesma fonte/tamanho/negrito da célula de bairro (detalhe), para coluna nome no resumo */
+        .tabela-resumo-setores .celula-nome-setor { font-weight: bold; font-size: 12px; background-color: #f9f9f9; }
+        .linha-total-setor { background-color: #e8f5e9; font-weight: bold; font-size: 12px; color: #1b5e20; }
         .txt-aberto { color: #b71c1c; font-weight: bold; }
         .txt-tratamento { color: #e67e22; }
         .txt-solucionado { color: #2e7d32; }
         .txt-center { text-align: center; }
+        .subtitulo-secao { font-size: 13px; font-weight: bold; color: #1b5e20; margin: 14px 0 6px 0; text-transform: uppercase; border-bottom: 1px solid #c8e6c9; padding-bottom: 3px; font-family: 'Segoe UI', Arial, sans-serif; }
+        .subtitulo-resumo-destaque { font-size: 14px; font-weight: 800; letter-spacing: 0.03em; border-bottom-width: 2px; border-bottom-color: #2e7d32; }
+        /* Resumo por secretaria: mesma fonte/tamanho da tabela de detalhe (.tabela-dados) */
+        .tabela-resumo-setores { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; border: 2px solid #2e7d32; }
+        .tabela-resumo-setores th { background-color: #f1f8e9; border: 1px solid #888; padding: 4px; text-align: left; color: #1b5e20; text-transform: uppercase; font-weight: bold; font-size: 11px; }
+        .tabela-resumo-setores th.num { text-align: center; }
+        .tabela-resumo-setores td { border: 1px solid #ccc; padding: 3px 5px; font-size: 12px; font-weight: normal; }
+        .tabela-resumo-setores td.num { text-align: center; }
+        .tabela-resumo-setores tr:nth-child(even) { background-color: #fafafa; }
+        .tabela-resumo-setores .linha-total-resumo { background-color: #e8f5e9; font-weight: bold; font-size: 12px; color: #1b5e20; }
+        .tabela-resumo-setores .linha-total-resumo td { font-weight: bold; }
+        .tabela-resumo-setores .txt-tratamento { font-weight: bold; }
+        .tabela-resumo-setores .txt-solucionado { font-weight: bold; }
+        .tabela-resumo-setores .txt-total-linha { color: #1b5e20; font-weight: bold; }
+        .tabela-tipos-pct-wrap { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+        .tabela-tipos-pct-wrap > tbody > tr > td { vertical-align: top; }
+        .tabela-tipos-pct { width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #888; }
+        .tabela-tipos-pct th { background-color: #e3f2fd; border: 1px solid #888; padding: 6px 8px; text-align: left; color: #1565c0; }
+        .tabela-tipos-pct td { border: 1px solid #ccc; padding: 4px 8px; }
+        .tabela-tipos-pct th.num-total { text-align: center; width: 64px; }
+        .tabela-tipos-pct td.num-total { text-align: center; font-weight: 600; color: #333; }
+        .tabela-tipos-pct td.pct { text-align: right; font-weight: bold; color: #0d47a1; }
     </style>
 </head>
 <body>
@@ -38,6 +63,115 @@
         <td class="txt-solucionado">TOTAL SOLUCIONADO: {{ total_solucionado }}</td>
     </tr>
 </table>
+
+{% if setores %}
+<div class="subtitulo-secao subtitulo-resumo-destaque">Resumo por secretaria</div>
+<table class="tabela-resumo-setores">
+    <thead>
+        <tr>
+            <th style="width: 42%;">Secretaria / setor</th>
+            <th class="num txt-aberto">Em aberto</th>
+            <th class="num txt-tratamento">Em tratamento</th>
+            <th class="num txt-solucionado">Solucionado</th>
+            <th class="num">Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for setor in setores %}
+        {% set tot_setor = setor.total_aberto + setor.total_tratamento + setor.total_solucionado %}
+        <tr>
+            <td class="celula-nome-setor">{{ setor.ordem }}. {{ setor.nome }}</td>
+            <td class="num {% if setor.total_aberto %}txt-aberto{% endif %}">{{ setor.total_aberto }}</td>
+            <td class="num {% if setor.total_tratamento %}txt-tratamento{% endif %}">{{ setor.total_tratamento }}</td>
+            <td class="num {% if setor.total_solucionado %}txt-solucionado{% endif %}">{{ setor.total_solucionado }}</td>
+            <td class="num txt-total-linha">{{ tot_setor }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="linha-total-resumo">
+            <td style="text-align: right; padding-right: 8px;">Total geral</td>
+            <td class="num txt-aberto">{{ total_aberto }}</td>
+            <td class="num txt-tratamento">{{ total_tratamento }}</td>
+            <td class="num txt-solucionado">{{ total_solucionado }}</td>
+            <td class="num txt-total-linha">{{ total_aberto + total_tratamento + total_solucionado }}</td>
+        </tr>
+    </tbody>
+</table>
+{% endif %}
+
+{% if tipos_percentual %}
+{% set _n_tip = tipos_percentual|length %}
+{% set _mid_tip = (_n_tip + 1) // 2 %}
+<div class="subtitulo-secao">Tipo de ocorrência — participação no período (%)</div>
+{% if _n_tip < 2 %}
+<table class="tabela-tipos-pct" width="100%" style="margin-bottom: 18px;">
+    <thead>
+        <tr>
+            <th>Tipo de ocorrência</th>
+            <th class="num-total">Quantidade</th>
+            <th style="text-align: right; width: 72px;">%</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in tipos_percentual %}
+        <tr>
+            <td>{{ item.tipo }}</td>
+            <td class="num-total">{{ item.quantidade|default(0) }}</td>
+            <td class="pct">{{ item.percentual }}%</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<table class="tabela-tipos-pct-wrap" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+        <td width="50%" style="width: 50%; padding-right: 8px;">
+            <table class="tabela-tipos-pct" width="100%">
+                <thead>
+                    <tr>
+                        <th>Tipo de ocorrência</th>
+                        <th class="num-total">Quantidade</th>
+                        <th style="text-align: right; width: 72px;">%</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in tipos_percentual[0:_mid_tip] %}
+                    <tr>
+                        <td>{{ item.tipo }}</td>
+                        <td class="num-total">{{ item.quantidade|default(0) }}</td>
+                        <td class="pct">{{ item.percentual }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </td>
+        <td width="50%" style="width: 50%; padding-left: 8px;">
+            <table class="tabela-tipos-pct" width="100%">
+                <thead>
+                    <tr>
+                        <th>Tipo de ocorrência</th>
+                        <th class="num-total">Quantidade</th>
+                        <th style="text-align: right; width: 72px;">%</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in tipos_percentual[_mid_tip:] %}
+                    <tr>
+                        <td>{{ item.tipo }}</td>
+                        <td class="num-total">{{ item.quantidade|default(0) }}</td>
+                        <td class="pct">{{ item.percentual }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </td>
+    </tr>
+</table>
+{% endif %}
+{% endif %}
+
+{% if setores %}
+<div class="subtitulo-secao">Detalhamento por secretaria</div>
+{% endif %}
 
 <table class="tabela-dados">
     <tbody>
@@ -73,7 +207,7 @@
     </tbody>
 </table>
 
-<div style="font-size: 10px; color: #777; margin-top: 10px; border-top: 1px solid #ccc; padding-top: 5px;">
+<div style="font-size: 11px; color: #777; margin-top: 10px; border-top: 1px solid #ccc; padding-top: 5px;">
     Este relatório consolida a gestão de todas as pastas municipais.<br>
     <strong>Fonte:</strong> Monitoramento Mapzer via Inteligência de Dados.
 </div>

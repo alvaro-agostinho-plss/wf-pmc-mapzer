@@ -53,6 +53,8 @@ def main() -> int:
             if getattr(args, "enviar", False):
                 r = executar_relatorios()
                 for setor, ok in r.items():
+                    if not isinstance(ok, bool):
+                        continue
                     status = "✓" if ok else "✗"
                     print(f"  {status} {setor}")
             else:

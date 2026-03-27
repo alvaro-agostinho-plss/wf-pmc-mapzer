@@ -150,13 +150,18 @@ CREATE TABLE IF NOT EXISTS envios_email (
     lot_id UUID REFERENCES lotes(lot_id) ON DELETE SET NULL,
     env_dt_inicio DATE,
     env_dt_fim DATE,
-    env_resultado JSONB NOT NULL DEFAULT '{}',
+    env_token VARCHAR(64),
+    env_resultado TEXT,
+    env_meta JSONB NOT NULL DEFAULT '{}',
+    env_destinatario VARCHAR(512),
+    env_expires_at TIMESTAMPTZ,
     env_usuario VARCHAR(255) DEFAULT 'sistema',
     create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_envios_email_lot_id ON envios_email(lot_id);
 CREATE INDEX IF NOT EXISTS idx_envios_email_create_at ON envios_email(create_at DESC);
-COMMENT ON TABLE envios_email IS 'Histórico de envios de relatórios por e-mail (auditoria)';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_envios_email_env_token ON envios_email(env_token) WHERE env_token IS NOT NULL;
+COMMENT ON TABLE envios_email IS 'Histórico de envios: HTML público (env_resultado), token (env_token), metadados (env_meta)';
 
 -- =============================================================================
 -- VIEW: OCORRÊNCIAS COM STATUS (Em Aberto / Em Tratamento / Solucionado)
@@ -266,7 +271,6 @@ INSERT INTO tipos (tip_nome, create_by, updated_by) VALUES
 ('Rachadura', 'admin', 'admin'),
 ('Reparo', 'admin', 'admin'),
 ('Rua Irregular', 'admin', 'admin'),
-('Sinalizacao Irregular', 'admin', 'admin'), -- Versão sem acento presente no JSON
 ('Sinalização Inexistente', 'admin', 'admin'),
 ('Sinalização Irregular', 'admin', 'admin'),
 ('Tampa Bueiro Irregular', 'admin', 'admin'),
@@ -326,7 +330,7 @@ BEGIN
     INSERT INTO setores (set_nome, set_email, create_by) 
     VALUES ('Segurança Publica', 'alvaro.agostinho@plss.com.br', 'admin') RETURNING set_id INTO v_setid;
     INSERT INTO setores_tipos (stp_setid, stp_tipid, create_by)
-    SELECT v_setid, tip_id, 'admin' FROM tipos WHERE tip_nome IN ('Placa Trânsito Irregular', 'Sinalização Inexistente', 'Sinalização Irregular', 'Sinalizacao Irregular', 'Veículo Irregular');
+    SELECT v_setid, tip_id, 'admin' FROM tipos WHERE tip_nome IN ('Placa Trânsito Irregular', 'Sinalização Inexistente', 'Sinalização Irregular', 'Veículo Irregular');
 
     -- 3.9 Tributação
     INSERT INTO setores (set_nome, set_email, create_by) 

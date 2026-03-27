@@ -40,7 +40,6 @@ def listar_setores() -> list[dict]:
 
 
 def obter_setor(set_id: int) -> dict | None:
-    """Retorna setor por ID ou None, incluindo tip_ids vinculados."""
     eng = _engine()
     with eng.connect() as conn:
         r = conn.execute(

@@ -1,10 +1,11 @@
 """Configuração do sistema via Pydantic e variáveis de ambiente."""
 
 import json
+import re
 import unicodedata
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 
 def normalizar_tipo(tipo: str) -> str:
@@ -53,6 +54,16 @@ class AppConfig(BaseSettings):
     dir_uploads: str | None = Field(alias="DIR_UPLOADS", default=None)
     email_template: str | None = Field(alias="EMAIL_TEMPLATE", default=None)
     municipio: str = Field(alias="MUNICIPIO", default="Castro - PR")
+    # Origem pública com esquema (https://…). Alias HOST: mesmo uso se URL_SISTEMA vazio no .env.
+    url_sistema: str = Field(
+        default="",
+        validation_alias=AliasChoices("URL_SISTEMA", "HOST"),
+    )
+    url_relatorio: str = Field(alias="URL_RELATORIO", default="/wfpmcmapzer/rel-ocorrencia")
+    # <= 0 = sem expiração (env_expires_at nulo). > 0 = dias até o link deixar de servir e o HTML ser apagado no acesso.
+    token_expiration_days: int = Field(alias="TOKEN_EXPIRATION_DAYS", default=30)
+    # <= 0 = desliga rate limit na rota GET /rel-ocorrencia
+    relatorio_rate_limit_per_minute: int = Field(alias="RELATORIO_RATE_LIMIT_PER_MINUTE", default=40)
 
     omitir_sem_localizacao: bool = Field(alias="OMITIR_SEM_LOCALIZACAO", default=False)
     tipo_sem_localizacao: str | None = Field(alias="TIPO_SEM_LOCALIZACAO", default=None)
@@ -86,6 +97,49 @@ class AppConfig(BaseSettings):
     coord_precision: int = Field(alias="COORD_PRECISION", default=6)
 
 
+def normalizar_origem_url_publica(raw: str) -> str:
+    """
+    URL_SISTEMA / HOST: já pode vir com https:// (não duplica o esquema).
+    Se vier só o hostname, assume https://. Corrige https://https://… acidental.
+    """
+    s = (raw or "").strip().rstrip("/")
+    if not s:
+        return ""
+    low = s.lower()
+    while low.startswith("https://https://"):
+        s = s[8:]
+        low = s.lower()
+    while low.startswith("http://http://"):
+        s = s[7:]
+        low = s.lower()
+    if not re.match(r"^https?://", s, re.I):
+        s = "https://" + s.lstrip("/")
+    return s.rstrip("/")
+
+
+def montar_url_relatorio_publico(token: str, app: AppConfig | None = None) -> str:
+    """
+    Monta o link com token.
+    - URL_RELATORIO relativo (/wfpmcmapzer/…): junta com URL_SISTEMA (origem com https).
+    - URL_RELATORIO absoluta (https://…): usa só ela + token (ignora duplicar origem).
+    """
+    cfg = app or AppConfig()
+    path_raw = (cfg.url_relatorio or "").strip()
+    q = f"token={token}"
+    if path_raw.lower().startswith(("http://", "https://")):
+        full = path_raw.rstrip("/")
+        if "token=" in full:
+            return full
+        sep = "&" if "?" in full else "?"
+        return f"{full}{sep}{q}"
+    path = path_raw
+    if not path.startswith("/"):
+        path = "/" + path
+    join = f"{path}&{q}" if "?" in path else f"{path}?{q}"
+    base = normalizar_origem_url_publica(cfg.url_sistema)
+    return f"{base}{join}" if base else join
+
+
 class SMTPConfig(BaseSettings):
     """Configuração SMTP para envio de e-mails."""
 
@@ -99,6 +153,40 @@ class SMTPConfig(BaseSettings):
     email_prefeito: str | None = Field(alias="EMAIL_PREFEITO", default=None)
     email_relatorio_total: str | None = Field(alias="EMAIL_RELTORIO_TOTAL", default=None)
     email_copia: str | None = Field(alias="EMAIL_COPIA", default=None)
+
+
+class WhatsAppConfig(BaseSettings):
+    """API HTTP sendText (ex.: waha / serviço interno)."""
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    whatsapp_server_url: str = Field(alias="WHATSAPP_SERVER_URL", default="")
+    whatsapp_server_token: str = Field(alias="WHATSAPP_SERVER_TOKEN", default="")
+    whatsapp_url_sendtext: str = Field(alias="WHATSAPP_URL_SENDTEXT", default="/api/sendText")
+    whatsapp_session: str = Field(alias="WHATSAPP_SESSION", default="default")
+    whatsapp_link_preview: bool = Field(alias="WHATSAPP_LINK_PREVIEW", default=True)
+    # Vários chatId (só dígitos), separados por vírgula — WhatsApp do relatório geral (modelo igual à secretaria, totais consolidados)
+    whatsapp_chat_ids_relatorio_geral: str | None = Field(
+        alias="WHATSAPP_CHAT_IDS_RELATORIO_GERAL",
+        default=None,
+    )
+    mapzer_portal_url: str = Field(
+        alias="MAPZER_PORTAL_URL",
+        default="https://portal.castro.pr.gov.br/wfpmcmapzer/login",
+    )
+    # Link do relatório detalhado na mensagem (se vazio, deriva de MAPZER_PORTAL_URL + /rel-ocorrencia)
+    mapzer_relatorio_url: str = Field(alias="MAPZER_RELATORIO_URL", default="")
+    mapzer_relatorio_token: str = Field(alias="MAPZER_RELATORIO_TOKEN", default="")
+    # Assinatura/rodapé: fixo nos arquivos config/whatsapp_mensagem_*.txt (editar só lá).
+    # Arquivos em config/ (ou caminho absoluto). Editáveis sem recompilar — Jinja2 recarrega se o arquivo mudar.
+    whatsapp_template_geral: str = Field(
+        alias="WHATSAPP_TEMPLATE_GERAL",
+        default="whatsapp_mensagem_geral.txt",
+    )
+    whatsapp_template_secretaria: str = Field(
+        alias="WHATSAPP_TEMPLATE_SECRETARIA",
+        default="whatsapp_mensagem_secretaria.txt",
+    )
 
 
 def carregar_mapeamento_db(config: DatabaseConfig | None = None, incluir_tipos_inativos: bool = False) -> dict:

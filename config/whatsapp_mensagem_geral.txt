@@ -1,0 +1,11 @@
+{# Variáveis: periodo_inicial, periodo_final, periodo_completo, tabela_setores, link_relatorio. Rodapé fixo abaixo — edite só neste arquivo. #}
+Olá, este é um resumo do relatório de ocorrências do Mapzer no período de {{ periodo_inicial }} à {{ periodo_final }}.
+
+```
+{{ tabela_setores }}
+```
+
+Acesse o link para verificar o relatório detalhado {{ link_relatorio }}
+
+Atenciosamente
+Secretaria Municipal de Ciência, Tecnologia e Inovação

@@ -1,6 +1,9 @@
 """Módulo de relatórios: agrupamento Setor->Bairro->Tipo, envio de e-mails."""
 
+import html as html_module
 import logging
+import re
+import secrets
 from datetime import datetime
 from pathlib import Path
 
@@ -12,7 +15,22 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.config import AppConfig, DatabaseConfig, SMTPConfig, carregar_mapeamento, normalizar_tipo
+from src.config import (
+    AppConfig,
+    DatabaseConfig,
+    SMTPConfig,
+    WhatsAppConfig,
+    carregar_mapeamento,
+    montar_url_relatorio_publico,
+    normalizar_tipo,
+)
+from src.whatsapp_notify import (
+    _parse_chat_ids,
+    _whatsapp_habilitado,
+    enviar_whatsapp_texto,
+    montar_texto_whatsapp_geral,
+    montar_texto_whatsapp_secretaria,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 logger = logging.getLogger("mapzer")
@@ -109,7 +127,8 @@ def agregar_dados_para_relatorio(
     Retorna: {
         periodo, municipio,
         total_aberto, total_tratamento, total_solucionado,
-        setores: [...], setores_por_id: {...}
+        setores: [...], setores_por_id: {...},
+        tipos_percentual: [{tipo, quantidade, percentual}, ...]
     }
     """
     if df.empty:
@@ -121,6 +140,7 @@ def agregar_dados_para_relatorio(
             "total_solucionado": 0,
             "setores": [],
             "setores_por_id": {},
+            "tipos_percentual": [],
         }
 
     if periodo_override:
@@ -271,6 +291,23 @@ def agregar_dados_para_relatorio(
     total_tratamento = sum(s["total_tratamento"] for s in setores_list)
     total_solucionado = sum(s["total_solucionado"] for s in setores_list)
 
+    # Participação % por tipo de ocorrência (cada linha da view = 1 ocorrência, mesmo recorte do relatório)
+    tipos_percentual: list[dict] = []
+    if "tip_nome" in df.columns and len(df) > 0:
+        s_tip = (
+            df["tip_nome"]
+            .fillna("Não identificado")
+            .astype(str)
+            .str.strip()
+            .replace({"nan": "Não identificado", "none": "Não identificado", "": "Não identificado"})
+        )
+        vc = s_tip.value_counts(dropna=False)
+        tot_tip = int(vc.sum())
+        for tipo, q in vc.items():
+            q = int(q)
+            pct = round(100.0 * q / tot_tip, 1) if tot_tip else 0.0
+            tipos_percentual.append({"tipo": str(tipo), "quantidade": q, "percentual": pct})
+
     return {
         "periodo": periodo,
         "municipio": AppConfig().municipio,
@@ -279,6 +316,7 @@ def agregar_dados_para_relatorio(
         "total_solucionado": total_solucionado,
         "setores": setores_list,
         "setores_por_id": setores_por_id,
+        "tipos_percentual": tipos_percentual,
     }
 
 
@@ -299,6 +337,7 @@ def gerar_html_email_geral(dados: dict, template_path: Path | str | None = None)
         total_tratamento=dados.get("total_tratamento", 0),
         total_solucionado=dados.get("total_solucionado", 0),
         setores=dados.get("setores", []),
+        tipos_percentual=dados.get("tipos_percentual") or [],
     )
 
 
@@ -320,6 +359,53 @@ def gerar_html_email_secretaria(dados_setor: dict, template_path: Path | str | N
         total_solucionado=dados_setor.get("total_solucionado", 0),
         blocos_bairro=dados_setor.get("blocos_bairro", []),
     )
+
+
+def _extrair_conteudo_body(html: str) -> str:
+    m = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL | re.IGNORECASE)
+    return (m.group(1) if m else html).strip()
+
+
+def montar_html_relatorio_completo_publico(dados: dict) -> str:
+    """HTML único para página pública: mesmo conteúdo dos e-mails (geral + cada secretaria)."""
+    partes = [_extrair_conteudo_body(gerar_html_email_geral(dados))]
+    periodo = dados.get("periodo", "")
+    for s in dados.get("setores") or []:
+        ds = {
+            "setor_nome": s.get("nome", ""),
+            "periodo": periodo,
+            "total_aberto": s.get("total_aberto", 0),
+            "total_tratamento": s.get("total_tratamento", 0),
+            "total_solucionado": s.get("total_solucionado", 0),
+            "blocos_bairro": s.get("blocos_bairro", []),
+        }
+        partes.append(_extrair_conteudo_body(gerar_html_email_secretaria(ds)))
+    inner = '<hr style="margin:2.5rem 0;border:none;border-top:2px solid #2e7d32">'.join(p for p in partes if p)
+    titulo = re.sub(r"<[^>]+>", "", periodo or "Relatório")[:120]
+    return (
+        "<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>"
+        '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<title>Relatório Mapzer — {titulo}</title></head>\n"
+        '<body style="margin:0;padding:16px;background:#f5f5f5">'
+        f"{inner}</body></html>"
+    )
+
+
+def _anexar_link_relatorio_html(html: str, url: str) -> str:
+    """Insere bloco com link público pessoal antes de </body>."""
+    if not url or not (html or "").strip():
+        return html
+    href = html_module.escape(url, quote=True)
+    bloco = (
+        '<p style="margin-top:24px;padding:12px;background:#e8f5e9;border-left:4px solid #2e7d32;font-size:13px;">'
+        "Visualize este relatório na web (link pessoal e por tempo limitado): "
+        f'<a href="{href}">{href}</a></p>'
+    )
+    low = html.lower()
+    idx = low.rfind("</body>")
+    if idx >= 0:
+        return html[:idx] + bloco + html[idx:]
+    return html + bloco
 
 
 def extrair_periodo(df: pd.DataFrame) -> str:
@@ -517,12 +603,12 @@ def executar_relatorios(
     dt_inicio: datetime | str | None = None,
     dt_fim: datetime | str | None = None,
     usar_view: bool = True,
-) -> dict[str, bool]:
+) -> dict:
     """
     Executa relatórios e envia e-mails.
     Se usar_view=True (padrão): consulta vw_ocorrencias_status e usa templates email_geral/email_secretaria.
     Se usar_view=False: usa lógica legada (ocorrencias + mapeamento JSON).
-    Retorna {setor: enviado_ok}
+    Com usar_view=True, retorna __registros_envio: um item por destinatário (e-mail ou WhatsApp), com token/HTML próprios.
     """
     if usar_view:
         return _executar_relatorios_view(db_config, smtp_config, dt_inicio, dt_fim)
@@ -561,8 +647,8 @@ def _executar_relatorios_view(
     smtp_config: SMTPConfig | None = None,
     dt_inicio: datetime | str | None = None,
     dt_fim: datetime | str | None = None,
-) -> dict[str, bool]:
-    """Usa view vw_ocorrencias_status e templates email_geral/email_secretaria."""
+) -> dict:
+    """Usa view vw_ocorrencias_status e templates email_geral/email_secretaria. Um token por destinatário."""
     config = db_config or DatabaseConfig()
     df = obter_dados_view(dt_inicio, dt_fim, config)
     logger.info("Relatório: view retornou %d linhas, cols=%s", len(df), list(df.columns) if not df.empty else [])
@@ -576,51 +662,146 @@ def _executar_relatorios_view(
             pass
     dados = agregar_dados_para_relatorio(df, periodo_override=periodo_override)
     smtp = smtp_config or SMTPConfig()
-    resultados = {}
+    wa_cfg = WhatsAppConfig()
+    resultados: dict = {}
+    wa_auditoria: dict = {"geral": None, "setores": {}}
     periodo = dados.get("periodo", "")
+    registros: list[dict] = []
 
-    # 1. Primeiro: relatório geral para EMAIL_RELTORIO_TOTAL + EMAIL_COPIA
+    def _novo_token_e_url() -> tuple[str, str]:
+        t = secrets.token_hex(16)
+        return t, montar_url_relatorio_publico(t)
+
+    html_geral_base = gerar_html_email_geral(dados)
+
+    # 1. Relatório geral: um e-mail por destino (link e token únicos)
     dest_geral = _destinatarios_relatorio_geral(smtp)
     if dest_geral:
-        try:
-            html_geral = gerar_html_email_geral(dados)
-            enviar_email(
-                dest_geral,
-                f"Relatório Geral de Ocorrências - {periodo}",
-                html_geral,
-                smtp,
-            )
-            resultados["_relatorio_geral"] = True
-        except Exception as e:
-            logger.exception("Envio relatório geral: %s", e)
-            resultados["_relatorio_geral"] = False
+        ok_algum = False
+        for email in dest_geral:
+            try:
+                tok, link = _novo_token_e_url()
+                html = _anexar_link_relatorio_html(html_geral_base, link)
+                enviar_email(
+                    [email],
+                    f"Relatório Geral de Ocorrências - {periodo}",
+                    html,
+                    smtp,
+                )
+                registros.append({
+                    "token": tok,
+                    "html": html,
+                    "destinatario": email,
+                    "env_meta": {"canal": "email", "tipo": "relatorio_geral"},
+                })
+                ok_algum = True
+            except Exception as e:
+                logger.exception("Envio relatório geral para %s: %s", email, e)
+        resultados["_relatorio_geral"] = ok_algum
 
-    # 2. E-mail para cada setor (apenas setores com dados e email)
-    for set_id, dados_setor in dados.get("setores_por_id", {}).items():
+    # 1b. WhatsApp relatório geral: WHATSAPP_CHAT_IDS_RELATORIO_GERAL; texto = mesmo modelo da secretaria (totais consolidados)
+    if _whatsapp_habilitado(wa_cfg) and dados.get("setores"):
+        ids_geral = _parse_chat_ids(wa_cfg.whatsapp_chat_ids_relatorio_geral)
+        if not ids_geral:
+            logger.warning(
+                "WhatsApp relatório geral: defina WHATSAPP_CHAT_IDS_RELATORIO_GERAL no .env (chatIds separados por vírgula)."
+            )
+        if ids_geral:
+            ok_geral = True
+            for cid in ids_geral:
+                try:
+                    tok, link = _novo_token_e_url()
+                    texto_wa = montar_texto_whatsapp_geral(
+                        dados, wa_cfg, link_relatorio_override=link
+                    )
+                    enviar_whatsapp_texto(cid, texto_wa, wa_cfg)
+                    html_pub = _anexar_link_relatorio_html(html_geral_base, link)
+                    registros.append({
+                        "token": tok,
+                        "html": html_pub,
+                        "destinatario": f"wa:{cid}",
+                        "env_meta": {"canal": "whatsapp", "tipo": "relatorio_geral"},
+                    })
+                    logger.info("WhatsApp relatório geral enviado (chatId=%s)", cid[:4] + "***")
+                except Exception as e:
+                    logger.exception("WhatsApp relatório geral chatId=%s: %s", cid, e)
+                    ok_geral = False
+            wa_auditoria["geral"] = ok_geral
+
+    # 2. E-mail / WhatsApp por setor
+    for _set_id, dados_setor in dados.get("setores_por_id", {}).items():
         total = (
             dados_setor.get("total_aberto", 0)
             + dados_setor.get("total_tratamento", 0)
             + dados_setor.get("total_solucionado", 0)
         )
         if total == 0:
-            continue  # Não envia se setor não tem ocorrências
-        destinos = _parse_emails(dados_setor.get("email", ""))
-        if not destinos:
-            resultados[dados_setor.get("setor_nome", "")] = False
             continue
-        try:
-            html = gerar_html_email_secretaria(dados_setor)
-            enviar_email(
-                destinos,
-                f"Relatório de Ocorrências - {dados_setor['setor_nome']} ({periodo})",
-                html,
-                smtp,
-            )
-            resultados[dados_setor["setor_nome"]] = True
-        except Exception as e:
-            logger.exception("Envio e-mail setor=%s: %s", dados_setor.get("setor_nome"), e)
-            resultados[dados_setor.get("setor_nome", "")] = False
+        destinos = _parse_emails(dados_setor.get("email", ""))
+        nome_setor = dados_setor.get("setor_nome", "")
+        html_sec_base = gerar_html_email_secretaria(dados_setor)
 
+        ok_email = False
+        for email in destinos:
+            try:
+                tok, link = _novo_token_e_url()
+                html = _anexar_link_relatorio_html(html_sec_base, link)
+                enviar_email(
+                    [email],
+                    f"Relatório de Ocorrências - {dados_setor['setor_nome']} ({periodo})",
+                    html,
+                    smtp,
+                )
+                registros.append({
+                    "token": tok,
+                    "html": html,
+                    "destinatario": email,
+                    "env_meta": {
+                        "canal": "email",
+                        "tipo": "relatorio_secretaria",
+                        "setor": nome_setor,
+                    },
+                })
+                ok_email = True
+            except Exception as e:
+                logger.exception("Envio e-mail setor=%s dest=%s: %s", nome_setor, email, e)
+
+        ok_wa_setor = False
+        if _whatsapp_habilitado(wa_cfg):
+            ids_setor = _parse_chat_ids(dados_setor.get("whatsapp") or "")
+            if ids_setor:
+                ok_sec = True
+                for cid in ids_setor:
+                    try:
+                        tok, link = _novo_token_e_url()
+                        texto_sec = montar_texto_whatsapp_secretaria(
+                            dados_setor, wa_cfg, link_relatorio_override=link
+                        )
+                        enviar_whatsapp_texto(cid, texto_sec, wa_cfg)
+                        html_pub = _anexar_link_relatorio_html(html_sec_base, link)
+                        registros.append({
+                            "token": tok,
+                            "html": html_pub,
+                            "destinatario": f"wa:{cid}",
+                            "env_meta": {
+                                "canal": "whatsapp",
+                                "tipo": "relatorio_secretaria",
+                                "setor": nome_setor,
+                            },
+                        })
+                        ok_wa_setor = True
+                        logger.info("WhatsApp setor=%s enviado (chatId=%s)", nome_setor, cid[:4] + "***")
+                    except Exception as e:
+                        logger.exception("WhatsApp setor=%s chatId=%s: %s", nome_setor, cid, e)
+                        ok_sec = False
+                wa_auditoria["setores"][nome_setor] = ok_sec
+
+        resultados[nome_setor] = ok_email or ok_wa_setor
+
+    if wa_auditoria["geral"] is not None or wa_auditoria["setores"]:
+        resultados["whatsapp"] = wa_auditoria
+
+    resultados["__registros_envio"] = registros
     return resultados
 
 

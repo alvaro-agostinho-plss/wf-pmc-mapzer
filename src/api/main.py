@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +26,8 @@ from src.api.tipos import (
     listar_tipos,
     obter_tipo,
 )
+from src.api.rate_limit_relatorio import verificar_rate_limit_relatorio
+from src.api.relatorio_publico import buscar_html_relatorio_token, normalizar_token
 from src.api.upload import (
     UPLOADS_DIR,
     criar_lote,
@@ -96,6 +98,33 @@ def login_page():
     """Página de login SSO."""
     html = _read_html("login.html")
     return html or "<h1>Login</h1><p>static/login.html não encontrado</p>"
+
+
+@app.get("/rel-ocorrencia", response_class=HTMLResponse)
+def relatorio_publico_por_token(
+    request: Request,
+    token: str = Query(..., min_length=32, max_length=128, description="Token hexadecimal gravado em envios_email no envio"),
+):
+    """
+    Página pública do relatório (sem login).
+
+    1) Valida formato do token (hex 32–128 caracteres).
+    2) Consulta `envios_email` por `env_token`; aplica `env_expires_at` se configurado.
+    3) Devolve `env_resultado` como HTML (UTF-8).
+    """
+    verificar_rate_limit_relatorio(request)
+    if normalizar_token(token) is None:
+        raise HTTPException(
+            400,
+            "Parâmetro token inválido. Use o link completo enviado por e-mail ou WhatsApp.",
+        )
+    html = buscar_html_relatorio_token(token)
+    if not html:
+        raise HTTPException(
+            404,
+            "Relatório não encontrado, link expirado ou token inválido.",
+        )
+    return HTMLResponse(content=html, media_type="text/html; charset=utf-8")
 
 
 @app.get("/setores", response_class=HTMLResponse)
