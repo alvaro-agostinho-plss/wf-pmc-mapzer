@@ -631,8 +631,8 @@ header p { margin: 0; color: #666; font-size: 0.9rem; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .setores-grid .col-nome { width: 22%; }
-.setores-grid .col-email { width: 30%; }
-.setores-grid .col-whatsapp { width: 22%; }
+.setores-grid .col-email { width: 30%; line-height: 1.35; word-break: break-word; vertical-align: top; }
+.setores-grid .col-whatsapp { width: 22%; line-height: 1.35; word-break: break-word; vertical-align: top; }
 .setores-grid .col-status { width: 8%; text-align: center; }
 .setores-grid .col-status .status-badge {
   display: inline-block;

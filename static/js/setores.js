@@ -62,6 +62,27 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+/** Quebra e-mail/WhatsApp em linhas: separadores ; ou newline; corrige email colado a telefone (ex.: ...gov.br42999461801). */
+function expandContatoSegment(seg) {
+  const t = String(seg).trim();
+  if (!t) return [];
+  const glued = t.match(/^([^@\s]+@[^\s;]+\.[a-zA-Z]{2,})(\d{10,})$/);
+  if (glued) return [glued[1].trim(), glued[2].trim()];
+  return [t];
+}
+
+function formatContatosCelula(raw) {
+  if (raw == null || String(raw).trim() === "") return "—";
+  const parts = [];
+  for (const seg of String(raw).split(/[;\n]+/)) {
+    for (const p of expandContatoSegment(seg)) {
+      if (p) parts.push(p);
+    }
+  }
+  if (!parts.length) return "—";
+  return parts.map(escapeHtml).join("<br>");
+}
+
 function renderTiposSemSetor(el, tipos, tiposMultiplosSetores = []) {
   if (!el) return;
   el.classList.remove("tipos-sem-setor-ok-box");
@@ -195,8 +216,8 @@ function renderSetorRow(s) {
         </button>
         ${escapeHtml(s.set_nome)}
       </td>
-      <td class="col-email">${escapeHtml(s.set_email || "—")}</td>
-      <td class="col-whatsapp">${escapeHtml(s.set_whatsapp || "—")}</td>
+      <td class="col-email">${formatContatosCelula(s.set_email)}</td>
+      <td class="col-whatsapp">${formatContatosCelula(s.set_whatsapp)}</td>
       <td class="col-status"><span class="status-badge status-${String(s.set_status || "ATIVO").toUpperCase() === "INATIVO" ? "inativo" : "ativo"}">${escapeHtml(String(s.set_status || "ATIVO").toUpperCase() === "INATIVO" ? "Inativo" : "Ativo")}</span></td>
       <td class="col-acoes">
         <button data-action="editar" data-id="${s.id}" class="btn-processar-lote btn-lote" title="Editar">Editar</button>
